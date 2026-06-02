@@ -2,6 +2,8 @@ defmodule CATools.Accounts.User do
   use Ecto.Schema
   import Ecto.Changeset
 
+  alias CATools.Maps.UserMap
+
   @type t :: %__MODULE__{
           id: integer() | nil,
           email: String.t() | nil,
@@ -9,7 +11,8 @@ defmodule CATools.Accounts.User do
           hashed_password: String.t() | nil,
           encrypted_credentials: map() | nil,
           confirmed_at: DateTime.t() | nil,
-          authenticated_at: DateTime.t() | nil
+          authenticated_at: DateTime.t() | nil,
+          maps: [UserMap.t()] | Ecto.Association.NotLoaded.t()
         }
 
   schema "users" do
@@ -19,6 +22,7 @@ defmodule CATools.Accounts.User do
     field :encrypted_credentials, :map, redact: true
     field :confirmed_at, :utc_datetime
     field :authenticated_at, :utc_datetime, virtual: true
+    has_many :maps, UserMap
 
     timestamps(type: :utc_datetime)
   end

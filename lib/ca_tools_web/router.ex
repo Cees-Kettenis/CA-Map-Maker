@@ -66,6 +66,15 @@ defmodule CAToolsWeb.Router do
     delete "/users/log-out", UserSessionController, :delete
   end
 
+  scope "/", CAToolsWeb do
+    pipe_through [:browser, :require_authenticated_user]
+
+    live_session :authenticated_maps,
+      on_mount: [{CAToolsWeb.Auth.UserAuth, :require_authenticated}] do
+      live "/dashboard/maps", MapLive.Index, :index
+    end
+  end
+
   ## Authentication routes
 
   scope "/auth", CAToolsWeb.Auth do
