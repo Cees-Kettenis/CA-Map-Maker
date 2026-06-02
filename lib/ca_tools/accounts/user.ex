@@ -7,6 +7,7 @@ defmodule CATools.Accounts.User do
           email: String.t() | nil,
           password: String.t() | nil,
           hashed_password: String.t() | nil,
+          encrypted_credentials: map() | nil,
           confirmed_at: DateTime.t() | nil,
           authenticated_at: DateTime.t() | nil
         }
@@ -15,6 +16,7 @@ defmodule CATools.Accounts.User do
     field :email, :string
     field :password, :string, virtual: true, redact: true
     field :hashed_password, :string, redact: true
+    field :encrypted_credentials, :map, redact: true
     field :confirmed_at, :utc_datetime
     field :authenticated_at, :utc_datetime, virtual: true
 

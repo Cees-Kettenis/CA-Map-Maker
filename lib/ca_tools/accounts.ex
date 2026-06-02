@@ -6,7 +6,7 @@ defmodule CATools.Accounts do
   import Ecto.Query, warn: false
   alias CATools.Repo
 
-  alias CATools.Accounts.{User, UserToken, UserNotifier}
+  alias CATools.Accounts.{CampfireCredentials, User, UserNotifier, UserToken}
   alias Ecto.Changeset
 
   @type session_lookup_result :: {User.t(), DateTime.t()} | nil
@@ -56,9 +56,10 @@ defmodule CATools.Accounts do
       when is_binary(email_value) and is_binary(password_value) ->
         user = Repo.get_by(User, email: email_value)
 
-        case User.valid_password?(user, password_value) do
-          true -> user
-          false -> nil
+        case {user, User.valid_password?(user, password_value)} do
+          {%User{confirmed_at: %DateTime{}}, true} -> user
+          {_, true} -> nil
+          {_, false} -> nil
         end
 
       _ ->
@@ -102,6 +103,79 @@ defmodule CATools.Accounts do
     %User{}
     |> User.email_changeset(attrs)
     |> Repo.insert()
+  end
+
+  @doc """
+  Returns an `%Ecto.Changeset{}` for validating a Campfire token input.
+  """
+  @spec change_user_campfire_token(map()) :: Changeset.t()
+  def change_user_campfire_token(attrs \\ %{}) do
+    {%{}, %{campfire_token_input: :string}}
+    |> Changeset.cast(attrs, [:campfire_token_input])
+    |> Changeset.validate_required([:campfire_token_input])
+    |> Changeset.validate_change(:campfire_token_input, fn :campfire_token_input, value ->
+      case CampfireCredentials.normalize(value) do
+        {:ok, _normalized_credentials} -> []
+        {:error, message} -> [campfire_token_input: message]
+      end
+    end)
+  end
+
+  @doc """
+  Stores an encrypted Campfire token for the given user.
+  """
+  @spec update_user_campfire_token(User.t(), map()) :: {:ok, User.t()} | {:error, Changeset.t()}
+  def update_user_campfire_token(user, attrs) do
+    changeset = change_user_campfire_token(attrs)
+
+    case {user, changeset.valid?} do
+      {%User{id: user_id}, true} ->
+        token_input = Changeset.get_field(changeset, :campfire_token_input)
+        {:ok, normalized_credentials} = CampfireCredentials.normalize(token_input)
+
+        encrypted_credentials =
+          CampfireCredentials.encrypt_user_credentials(user_id, normalized_credentials)
+
+        user
+        |> Changeset.change(encrypted_credentials: encrypted_credentials)
+        |> Repo.update()
+
+      _ ->
+        {:error, changeset}
+    end
+  end
+
+  @doc """
+  Deletes the stored Campfire token for the given user.
+  """
+  @spec delete_user_campfire_token(User.t()) :: {:ok, User.t()} | {:error, Changeset.t()}
+  def delete_user_campfire_token(user) do
+    user
+    |> Changeset.change(encrypted_credentials: nil)
+    |> Repo.update()
+  end
+
+  @doc """
+  Returns whether the user has a stored Campfire token.
+  """
+  @spec user_has_campfire_token?(User.t() | term()) :: boolean()
+  def user_has_campfire_token?(user) do
+    case user do
+      %User{encrypted_credentials: encrypted_credentials} when is_map(encrypted_credentials) ->
+        true
+
+      _ ->
+        false
+    end
+  end
+
+  @doc """
+  Decrypts the stored Campfire credentials for the given user.
+  """
+  @spec get_user_campfire_credentials(User.t()) ::
+          {:ok, CampfireCredentials.normalized_credentials() | nil} | {:error, atom()}
+  def get_user_campfire_credentials(user) do
+    CampfireCredentials.decrypt_user_credentials(user.id, user.encrypted_credentials)
   end
 
   ## Settings

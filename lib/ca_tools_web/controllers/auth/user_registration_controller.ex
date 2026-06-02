@@ -3,6 +3,7 @@ defmodule CAToolsWeb.Auth.UserRegistrationController do
 
   alias CATools.Accounts
   alias CATools.Accounts.User
+  alias CAToolsWeb.RequestSecurity
 
   @doc "Renders the registration form."
   @spec new(Plug.Conn.t(), map()) :: Plug.Conn.t()
@@ -24,23 +25,41 @@ defmodule CAToolsWeb.Auth.UserRegistrationController do
   end
 
   defp create_user(conn, user_params) do
-    case Accounts.register_user(user_params) do
-      {:ok, user} ->
-        {:ok, _} =
-          Accounts.deliver_login_instructions(
-            user,
-            &url(~p"/auth/users/log-in/#{&1}")
-          )
+    limits = [
+      {:registration_ip, RequestSecurity.client_ip(conn)},
+      {:registration_email, RequestSecurity.normalize_email_identifier(user_params["email"])}
+    ]
 
+    case RequestSecurity.check_limits(limits) do
+      :ok ->
+        case Accounts.register_user(user_params) do
+          {:ok, user} ->
+            {:ok, _} =
+              Accounts.deliver_login_instructions(
+                user,
+                &url(~p"/auth/users/log-in/#{&1}")
+              )
+
+            conn
+            |> put_flash(
+              :info,
+              "An email was sent to #{user.email}, please access it to confirm your account."
+            )
+            |> redirect(to: ~p"/auth/users/log-in")
+
+          {:error, %Ecto.Changeset{} = changeset} ->
+            render(conn, :new, changeset: changeset)
+        end
+
+      {:error, retry_after_seconds} ->
         conn
         |> put_flash(
-          :info,
-          "An email was sent to #{user.email}, please access it to confirm your account."
+          :error,
+          "Too many registration attempts. Try again in #{retry_after_seconds} seconds."
         )
-        |> redirect(to: ~p"/auth/users/log-in")
-
-      {:error, %Ecto.Changeset{} = changeset} ->
-        render(conn, :new, changeset: changeset)
+        |> render(:new,
+          changeset: Accounts.change_user_email(%User{}, user_params, validate_unique: false)
+        )
     end
   end
 end

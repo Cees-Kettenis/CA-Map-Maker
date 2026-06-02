@@ -3,6 +3,7 @@ defmodule CAToolsWeb.Auth.UserSessionController do
 
   alias CATools.Accounts
   alias CAToolsWeb.Auth.UserAuth
+  alias CAToolsWeb.RequestSecurity
 
   @doc "Creates a user session from a confirmed token, magic link, or password login."
   @spec create(Plug.Conn.t(), map()) :: Plug.Conn.t()
@@ -35,16 +36,33 @@ defmodule CAToolsWeb.Auth.UserSessionController do
   defp create_session(conn, %{"user" => user_params}, info) do
     %{"email" => email, "password" => password} = user_params
 
-    if user = Accounts.get_user_by_email_and_password(email, password) do
-      conn
-      |> put_flash(:info, info)
-      |> UserAuth.log_in_user(user, user_params)
-    else
-      # In order to prevent user enumeration attacks, don't disclose whether the email is registered.
-      conn
-      |> put_flash(:error, "Invalid email or password")
-      |> put_flash(:email, String.slice(email, 0, 160))
-      |> redirect(to: ~p"/auth/users/log-in")
+    limits = [
+      {:login_password_ip, RequestSecurity.client_ip(conn)},
+      {:login_password_email, RequestSecurity.normalize_email_identifier(email)}
+    ]
+
+    case RequestSecurity.check_limits(limits) do
+      :ok ->
+        if user = Accounts.get_user_by_email_and_password(email, password) do
+          conn
+          |> put_flash(:info, info)
+          |> UserAuth.log_in_user(user, user_params)
+        else
+          # In order to prevent user enumeration attacks, don't disclose whether the email is registered.
+          conn
+          |> put_flash(:error, "Invalid email or password")
+          |> put_flash(:email, String.slice(email, 0, 160))
+          |> redirect(to: ~p"/auth/users/log-in")
+        end
+
+      {:error, retry_after_seconds} ->
+        conn
+        |> put_flash(
+          :error,
+          "Too many login attempts. Try again in #{retry_after_seconds} seconds."
+        )
+        |> put_flash(:email, String.slice(email, 0, 160))
+        |> redirect(to: ~p"/auth/users/log-in")
     end
   end
 

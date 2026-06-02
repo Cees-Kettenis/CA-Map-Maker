@@ -2,6 +2,7 @@ defmodule CAToolsWeb.Auth.UserSessionControllerTest do
   use CAToolsWeb.ConnCase, async: true
 
   import CATools.AccountsFixtures
+  import Ecto.Query
   alias CATools.Accounts
 
   setup do
@@ -69,6 +70,43 @@ defmodule CAToolsWeb.Auth.UserSessionControllerTest do
 
       assert Phoenix.Flash.get(conn.assigns.flash, :error) == "Invalid email or password"
       assert redirected_to(conn) == ~p"/auth/users/log-in"
+    end
+
+    test "does not log in an unconfirmed user with a valid password", %{
+      conn: conn,
+      unconfirmed_user: user
+    } do
+      {1, nil} =
+        CATools.Repo.update_all(
+          from(u in CATools.Accounts.User, where: u.id == ^user.id),
+          set: [hashed_password: Bcrypt.hash_pwd_salt(valid_user_password())]
+        )
+
+      conn =
+        post(conn, ~p"/auth/users/log-in", %{
+          "user" => %{"email" => user.email, "password" => valid_user_password()}
+        })
+
+      assert Phoenix.Flash.get(conn.assigns.flash, :error) == "Invalid email or password"
+      assert redirected_to(conn) == ~p"/auth/users/log-in"
+    end
+
+    test "rate limits repeated password attempts", %{conn: conn, user: user} do
+      user = set_password(user)
+
+      Enum.each(1..10, fn _attempt ->
+        post(conn, ~p"/auth/users/log-in", %{
+          "user" => %{"email" => user.email, "password" => "invalid_password"}
+        })
+      end)
+
+      limited_conn =
+        post(conn, ~p"/auth/users/log-in", %{
+          "user" => %{"email" => user.email, "password" => "invalid_password"}
+        })
+
+      assert Phoenix.Flash.get(limited_conn.assigns.flash, :error) =~ "Too many login attempts"
+      assert redirected_to(limited_conn) == ~p"/auth/users/log-in"
     end
   end
 

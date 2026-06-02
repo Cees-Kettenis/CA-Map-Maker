@@ -2,6 +2,7 @@ defmodule CATools.AccountsTest do
   use CATools.DataCase
 
   alias CATools.Accounts
+  alias CATools.Accounts.CampfireCredentials
 
   import CATools.AccountsFixtures
   alias CATools.Accounts.{User, UserToken}
@@ -32,6 +33,15 @@ defmodule CATools.AccountsTest do
 
       assert %User{id: ^id} =
                Accounts.get_user_by_email_and_password(user.email, valid_user_password())
+    end
+
+    test "does not return an unconfirmed user even with a valid password" do
+      user = unconfirmed_user_fixture()
+
+      {1, nil} =
+        Repo.update_all(User, set: [hashed_password: Bcrypt.hash_pwd_salt(valid_user_password())])
+
+      refute Accounts.get_user_by_email_and_password(user.email, valid_user_password())
     end
   end
 
@@ -84,6 +94,102 @@ defmodule CATools.AccountsTest do
       assert is_nil(user.hashed_password)
       assert is_nil(user.confirmed_at)
       assert is_nil(user.password)
+    end
+  end
+
+  describe "Campfire credentials" do
+    setup do
+      %{user: user_fixture()}
+    end
+
+    test "validates supported token formats" do
+      assert Accounts.change_user_campfire_token(%{"campfire_token_input" => "raw-token-value"}).valid?
+
+      assert Accounts.change_user_campfire_token(%{
+               "campfire_token_input" => "Authorization: Bearer header-token-value"
+             }).valid?
+
+      assert Accounts.change_user_campfire_token(%{
+               "campfire_token_input" => ~s({"Authorization":"Bearer json-token-value"})
+             }).valid?
+    end
+
+    test "stores encrypted credentials and decrypts them again", %{user: user} do
+      token = "campfire-token-123"
+
+      assert {:ok, updated_user} =
+               Accounts.update_user_campfire_token(user, %{"campfire_token_input" => token})
+
+      assert updated_user.encrypted_credentials["ciphertext"] != token
+      assert updated_user.encrypted_credentials["alg"] == "AES-256-GCM"
+      assert Accounts.user_has_campfire_token?(updated_user)
+
+      assert {:ok, %{"campfire" => %{"token" => ^token, "token_type" => "bearer"}}} =
+               Accounts.get_user_campfire_credentials(updated_user)
+    end
+
+    test "uses a unique IV for each save", %{user: user} do
+      {:ok, first_user} =
+        Accounts.update_user_campfire_token(user, %{"campfire_token_input" => "first-token"})
+
+      {:ok, second_user} =
+        Accounts.update_user_campfire_token(user, %{"campfire_token_input" => "first-token"})
+
+      refute first_user.encrypted_credentials["iv"] == second_user.encrypted_credentials["iv"]
+
+      refute first_user.encrypted_credentials["ciphertext"] ==
+               second_user.encrypted_credentials["ciphertext"]
+    end
+
+    test "detects tampering", %{user: user} do
+      {:ok, updated_user} =
+        Accounts.update_user_campfire_token(user, %{"campfire_token_input" => "campfire-token"})
+
+      tampered_credentials =
+        Map.update!(updated_user.encrypted_credentials, "ciphertext", fn ciphertext ->
+          ciphertext
+          |> Base.decode64!()
+          |> then(fn <<first, rest::binary>> -> <<Bitwise.bxor(first, 1), rest::binary>> end)
+          |> Base.encode64()
+        end)
+
+      assert {:error, error} =
+               CampfireCredentials.decrypt_user_credentials(user.id, tampered_credentials)
+
+      assert error in [:decryption_failed, :invalid_payload]
+    end
+
+    test "fails decryption when the master key changes", %{user: user} do
+      original_runtime_secrets = Application.fetch_env!(:ca_tools, :runtime_secrets)
+
+      on_exit(fn ->
+        Application.put_env(:ca_tools, :runtime_secrets, original_runtime_secrets)
+      end)
+
+      {:ok, updated_user} =
+        Accounts.update_user_campfire_token(user, %{"campfire_token_input" => "campfire-token"})
+
+      Application.put_env(
+        :ca_tools,
+        :runtime_secrets,
+        Keyword.put(
+          original_runtime_secrets,
+          :credentials_master_key_base64,
+          Base.encode64(:crypto.strong_rand_bytes(32))
+        )
+      )
+
+      assert {:error, error} = Accounts.get_user_campfire_credentials(updated_user)
+      assert error in [:decryption_failed, :invalid_payload]
+    end
+
+    test "deletes stored credentials", %{user: user} do
+      {:ok, updated_user} =
+        Accounts.update_user_campfire_token(user, %{"campfire_token_input" => "campfire-token"})
+
+      assert {:ok, deleted_user} = Accounts.delete_user_campfire_token(updated_user)
+      refute Accounts.user_has_campfire_token?(deleted_user)
+      assert {:ok, nil} = Accounts.get_user_campfire_credentials(deleted_user)
     end
   end
 
@@ -392,6 +498,10 @@ defmodule CATools.AccountsTest do
   describe "inspect/2 for the User module" do
     test "does not include password" do
       refute inspect(%User{password: "123456"}) =~ "password: \"123456\""
+    end
+
+    test "does not include encrypted credentials" do
+      refute inspect(%User{encrypted_credentials: %{"ciphertext" => "secret"}}) =~ "ciphertext"
     end
   end
 end

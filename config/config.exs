@@ -89,8 +89,30 @@ config :logger, :default_formatter,
   format: "$time $metadata[$level] $message\n",
   metadata: [:request_id]
 
+config :phoenix, :filter_parameters, [
+  "authorization",
+  "campfire_token_input",
+  "credentials",
+  "encrypted_credentials",
+  "password",
+  "token"
+]
+
 config :hammer,
   backend: {Hammer.Backend.ETS, [expiry_ms: 60_000 * 60 * 2, cleanup_interval_ms: 60_000 * 10]}
+
+config :ca_tools, CATools.RateLimiter,
+  limits: %{
+    registration_ip: %{scale_ms: :timer.minutes(10), limit: 100},
+    registration_email: %{scale_ms: :timer.hours(1), limit: 3},
+    login_password_ip: %{scale_ms: :timer.minutes(15), limit: 200},
+    login_password_email: %{scale_ms: :timer.minutes(15), limit: 10},
+    login_magic_ip: %{scale_ms: :timer.minutes(15), limit: 100},
+    login_magic_email: %{scale_ms: :timer.minutes(15), limit: 5},
+    campfire_credentials_validate: %{scale_ms: :timer.minutes(10), limit: 15},
+    campfire_credentials_save: %{scale_ms: :timer.minutes(10), limit: 10},
+    campfire_credentials_delete: %{scale_ms: :timer.minutes(10), limit: 10}
+  }
 
 # Use Jason for JSON parsing in Phoenix
 config :phoenix, :json_library, Jason

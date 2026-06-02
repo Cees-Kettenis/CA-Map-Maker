@@ -41,6 +41,31 @@ defmodule CAToolsWeb.Auth.UserLive.LoginTest do
 
       assert html =~ "If your email is in our system"
     end
+
+    test "rate limits repeated magic-link requests", %{conn: conn} do
+      email = unique_user_email()
+      user_fixture(%{email: email})
+
+      Enum.each(1..5, fn _attempt ->
+        {:ok, lv, _html} = live(conn, ~p"/auth/users/log-in")
+
+        {:ok, _lv, html} =
+          form(lv, "#login_form_magic", user: %{email: email})
+          |> render_submit()
+          |> follow_redirect(conn, ~p"/auth/users/log-in")
+
+        assert html =~ "If your email is in our system"
+      end)
+
+      {:ok, lv, _html} = live(conn, ~p"/auth/users/log-in")
+
+      {:ok, _lv, html} =
+        form(lv, "#login_form_magic", user: %{email: email})
+        |> render_submit()
+        |> follow_redirect(conn, ~p"/auth/users/log-in")
+
+      assert html =~ "Too many login requests"
+    end
   end
 
   describe "user login - password" do

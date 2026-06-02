@@ -98,12 +98,17 @@ defmodule CAToolsWeb.CoreComponents do
   """
   attr :rest, :global, include: ~w(href navigate patch method download name value disabled)
   attr :class, :any
-  attr :variant, :string, values: ~w(primary)
+  attr :variant, :string, values: ~w(danger primary secondary)
   slot :inner_block, required: true
 
   @spec button(map()) :: Phoenix.LiveView.Rendered.t()
   def button(%{rest: rest} = assigns) do
-    variants = %{"primary" => "btn-primary", nil => "btn-primary btn-soft"}
+    variants = %{
+      "danger" => "btn-error",
+      "primary" => "btn-primary",
+      "secondary" => "btn-primary btn-soft",
+      nil => "btn-primary btn-soft"
+    }
 
     assigns =
       assign_new(assigns, :class, fn ->

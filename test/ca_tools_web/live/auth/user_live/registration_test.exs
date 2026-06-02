@@ -64,6 +64,24 @@ defmodule CAToolsWeb.Auth.UserLive.RegistrationTest do
 
       assert result =~ "has already been taken"
     end
+
+    test "rate limits repeated registration attempts", %{conn: conn} do
+      email = "rate-limit@example.com"
+
+      Enum.each(1..3, fn _attempt ->
+        {:ok, lv, _html} = live(conn, ~p"/auth/users/register")
+        render_submit(form(lv, "#registration_form", user: %{"email" => email}))
+      end)
+
+      {:ok, lv, _html} = live(conn, ~p"/auth/users/register")
+
+      result =
+        lv
+        |> form("#registration_form", user: %{"email" => email})
+        |> render_submit()
+
+      assert result =~ "Too many registration attempts"
+    end
   end
 
   describe "registration navigation" do

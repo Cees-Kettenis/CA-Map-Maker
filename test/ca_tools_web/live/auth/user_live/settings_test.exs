@@ -14,6 +14,7 @@ defmodule CAToolsWeb.Auth.UserLive.SettingsTest do
 
       assert html =~ "Change Email"
       assert html =~ "Save Password"
+      assert html =~ "Campfire Credentials"
     end
 
     test "redirects if user is not logged in", %{conn: conn} do
@@ -207,6 +208,67 @@ defmodule CAToolsWeb.Auth.UserLive.SettingsTest do
       assert path == ~p"/auth/users/log-in"
       assert %{"error" => message} = flash
       assert message == "You must log in to access this page."
+    end
+  end
+
+  describe "Campfire credentials" do
+    setup %{conn: conn} do
+      user = user_fixture()
+      %{conn: log_in_user(conn, user), user: user}
+    end
+
+    test "validates and stores a token without rendering it back", %{conn: conn} do
+      {:ok, lv, _html} = live(conn, ~p"/auth/users/settings")
+      token = "campfire-token-123"
+
+      validated_html =
+        lv
+        |> form("#campfire_credentials_form", %{
+          "campfire_credentials" => %{"campfire_token_input" => "Authorization: Bearer #{token}"}
+        })
+        |> render_submit(%{"intent" => "validate"})
+
+      assert validated_html =~ "Campfire token looks valid."
+
+      saved_html =
+        lv
+        |> form("#campfire_credentials_form", %{
+          "campfire_credentials" => %{"campfire_token_input" => token}
+        })
+        |> render_submit(%{"intent" => "save"})
+
+      assert saved_html =~ "Campfire token saved."
+      assert saved_html =~ "Campfire token saved."
+      refute saved_html =~ token
+    end
+
+    test "deletes a saved token", %{conn: conn, user: user} do
+      {:ok, _updated_user} =
+        Accounts.update_user_campfire_token(user, %{"campfire_token_input" => "campfire-token"})
+
+      {:ok, lv, _html} = live(conn, ~p"/auth/users/settings")
+
+      html = render_click(element(lv, "button", "Delete Saved Token"))
+
+      assert html =~ "Campfire token deleted."
+      assert html =~ "No Campfire token saved."
+    end
+
+    test "rate limits credential validation", %{conn: conn} do
+      {:ok, lv, _html} = live(conn, ~p"/auth/users/settings")
+
+      form =
+        form(lv, "#campfire_credentials_form", %{
+          "campfire_credentials" => %{"campfire_token_input" => "token"}
+        })
+
+      Enum.each(1..15, fn _attempt ->
+        render_submit(form, %{"intent" => "validate"})
+      end)
+
+      html = render_submit(form, %{"intent" => "validate"})
+
+      assert html =~ "Too many credential validation attempts"
     end
   end
 end

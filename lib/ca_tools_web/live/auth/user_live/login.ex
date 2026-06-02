@@ -2,6 +2,7 @@ defmodule CAToolsWeb.Auth.UserLive.Login do
   use CAToolsWeb, :live_view
 
   alias CATools.Accounts
+  alias CAToolsWeb.RequestSecurity
 
   @impl true
   @doc false
@@ -107,7 +108,12 @@ defmodule CAToolsWeb.Auth.UserLive.Login do
 
     form = to_form(%{"email" => email}, as: "user")
 
-    {:ok, assign(socket, form: form, trigger_submit: false)}
+    {:ok,
+     assign(socket,
+       client_ip: RequestSecurity.live_client_ip(socket),
+       form: form,
+       trigger_submit: false
+     )}
   end
 
   @impl true
@@ -120,24 +126,41 @@ defmodule CAToolsWeb.Auth.UserLive.Login do
         {:noreply, assign(socket, :trigger_submit, true)}
 
       {"submit_magic", %{"user" => %{"email" => email}}} ->
-        case Accounts.get_user_by_email(email) do
-          nil ->
-            :ok
+        limits = [
+          {:login_magic_ip, socket.assigns.client_ip},
+          {:login_magic_email, RequestSecurity.normalize_email_identifier(email)}
+        ]
 
-          user ->
-            Accounts.deliver_login_instructions(
-              user,
-              &url(~p"/auth/users/log-in/#{&1}")
-            )
+        case RequestSecurity.check_limits(limits) do
+          :ok ->
+            case Accounts.get_user_by_email(email) do
+              nil ->
+                :ok
+
+              user ->
+                Accounts.deliver_login_instructions(
+                  user,
+                  &url(~p"/auth/users/log-in/#{&1}")
+                )
+            end
+
+            info =
+              "If your email is in our system, you will receive instructions for logging in shortly."
+
+            {:noreply,
+             socket
+             |> put_flash(:info, info)
+             |> push_navigate(to: ~p"/auth/users/log-in")}
+
+          {:error, retry_after_seconds} ->
+            {:noreply,
+             socket
+             |> put_flash(
+               :error,
+               "Too many login requests. Try again in #{retry_after_seconds} seconds."
+             )
+             |> push_navigate(to: ~p"/auth/users/log-in")}
         end
-
-        info =
-          "If your email is in our system, you will receive instructions for logging in shortly."
-
-        {:noreply,
-         socket
-         |> put_flash(:info, info)
-         |> push_navigate(to: ~p"/auth/users/log-in")}
     end
   end
 

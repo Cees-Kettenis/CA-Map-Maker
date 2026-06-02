@@ -3,6 +3,7 @@ defmodule CAToolsWeb.Auth.UserLive.Registration do
 
   alias CATools.Accounts
   alias CATools.Accounts.User
+  alias CAToolsWeb.RequestSecurity
 
   @impl true
   @doc false
@@ -56,7 +57,10 @@ defmodule CAToolsWeb.Auth.UserLive.Registration do
       nil ->
         changeset = Accounts.change_user_email(%User{}, %{}, validate_unique: false)
 
-        {:ok, assign_form(socket, changeset), temporary_assigns: [form: nil]}
+        {:ok,
+         socket
+         |> assign(:client_ip, RequestSecurity.live_client_ip(socket))
+         |> assign_form(changeset), temporary_assigns: [form: nil]}
 
       _user ->
         {:ok, redirect(socket, to: CAToolsWeb.Auth.UserAuth.signed_in_path(socket))}
@@ -70,24 +74,43 @@ defmodule CAToolsWeb.Auth.UserLive.Registration do
   def handle_event(event, params, socket) do
     case {event, params} do
       {"save", %{"user" => user_params}} ->
-        case Accounts.register_user(user_params) do
-          {:ok, user} ->
-            {:ok, _} =
-              Accounts.deliver_login_instructions(
-                user,
-                &url(~p"/auth/users/log-in/#{&1}")
-              )
+        limits = [
+          {:registration_ip, socket.assigns.client_ip},
+          {:registration_email, RequestSecurity.normalize_email_identifier(user_params["email"])}
+        ]
 
+        case RequestSecurity.check_limits(limits) do
+          :ok ->
+            case Accounts.register_user(user_params) do
+              {:ok, user} ->
+                {:ok, _} =
+                  Accounts.deliver_login_instructions(
+                    user,
+                    &url(~p"/auth/users/log-in/#{&1}")
+                  )
+
+                {:noreply,
+                 socket
+                 |> put_flash(
+                   :info,
+                   "An email was sent to #{user.email}, please access it to confirm your account."
+                 )
+                 |> push_navigate(to: ~p"/auth/users/log-in")}
+
+              {:error, %Ecto.Changeset{} = changeset} ->
+                {:noreply, assign_form(socket, changeset)}
+            end
+
+          {:error, retry_after_seconds} ->
             {:noreply,
              socket
              |> put_flash(
-               :info,
-               "An email was sent to #{user.email}, please access it to confirm your account."
+               :error,
+               "Too many registration attempts. Try again in #{retry_after_seconds} seconds."
              )
-             |> push_navigate(to: ~p"/auth/users/log-in")}
-
-          {:error, %Ecto.Changeset{} = changeset} ->
-            {:noreply, assign_form(socket, changeset)}
+             |> assign_form(
+               Accounts.change_user_email(%User{}, user_params, validate_unique: false)
+             )}
         end
 
       {"validate", %{"user" => user_params}} ->
