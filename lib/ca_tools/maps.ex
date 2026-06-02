@@ -6,11 +6,10 @@ defmodule CATools.Maps do
   import Ecto.Query, warn: false
 
   alias CATools.Accounts.Scope
+  alias CATools.Campfire.LinkResolver
   alias CATools.Maps.{MapSource, UserMap}
   alias CATools.Repo
   alias Ecto.Changeset
-
-  @allowed_campfire_hosts ["cmpf.re", "campfire.nianticlabs.com"]
 
   @type source_url_error() :: String.t()
   @type source_url_result() :: {:ok, [String.t()]} | {:error, [source_url_error()]}
@@ -177,38 +176,7 @@ defmodule CATools.Maps do
   end
 
   defp normalize_source_url(url) do
-    case URI.parse(url) do
-      %URI{scheme: scheme, host: host} = uri
-      when scheme in ["http", "https"] and is_binary(host) ->
-        normalized_scheme = String.downcase(scheme)
-        normalized_host = String.downcase(host)
-
-        cond do
-          uri.userinfo != nil ->
-            {:error, "must not include embedded credentials."}
-
-          uri.port not in [nil, default_port(normalized_scheme)] ->
-            {:error, "must not include a custom port."}
-
-          normalized_host not in @allowed_campfire_hosts ->
-            {:error,
-             "unsupported host #{host}. Only cmpf.re and campfire.nianticlabs.com are allowed."}
-
-          true ->
-            normalized_uri = %URI{
-              uri
-              | scheme: normalized_scheme,
-                host: normalized_host,
-                port: nil,
-                fragment: nil
-            }
-
-            {:ok, URI.to_string(normalized_uri)}
-        end
-
-      _ ->
-        {:error, "must be a valid http or https URL."}
-    end
+    LinkResolver.normalize_source_url(url)
   end
 
   defp create_map_with_sources(changeset, normalized_urls) do
@@ -277,7 +245,4 @@ defmodule CATools.Maps do
       _ -> :error
     end
   end
-
-  defp default_port("http"), do: 80
-  defp default_port("https"), do: 443
 end

@@ -40,8 +40,18 @@ config :ca_tools,
 
 config :ca_tools, Oban,
   repo: CATools.Repo,
-  plugins: [],
+  plugins: [{Oban.Plugins.Pruner, max_age: 60 * 60 * 24 * 7}],
   queues: []
+
+config :ca_tools, CATools.Campfire.LinkResolver,
+  timeout: 15_000,
+  redirect_limit: 5,
+  request_options: []
+
+config :ca_tools, CATools.Campfire.GraphQLClient,
+  endpoint: "https://campfire.nianticlabs.com/api/graphql",
+  timeout: 20_000,
+  request_options: []
 
 # Configure the endpoint
 config :ca_tools, CAToolsWeb.Endpoint,

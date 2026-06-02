@@ -37,7 +37,7 @@ config :ca_tools, :runtime_secrets, credentials_master_key_base64: credentials_m
 
 config :ca_tools, Oban,
   repo: CATools.Repo,
-  plugins: [],
+  plugins: [{Oban.Plugins.Pruner, max_age: 60 * 60 * 24 * 7}],
   queues: [
     imports: oban_import_queue_limit,
     retries: oban_retry_queue_limit,

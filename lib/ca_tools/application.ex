@@ -12,6 +12,7 @@ defmodule CATools.Application do
     children = [
       CAToolsWeb.Telemetry,
       CATools.Repo,
+      {Oban, Application.fetch_env!(:ca_tools, Oban)},
       {CATools.RateLimiter, clean_period: :timer.minutes(10)},
       {DNSCluster, query: Application.get_env(:ca_tools, :dns_cluster_query) || :ignore},
       {Phoenix.PubSub, name: CATools.PubSub},

@@ -37,3 +37,4 @@ npm-debug.log
 plan.md
 tasks.json
 
+.elixir_ls/
