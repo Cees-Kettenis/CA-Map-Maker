@@ -6,7 +6,11 @@ defmodule CATools.RateLimiter do
   use Hammer, backend: :ets
 
   @type limit_name ::
-          :campfire_credentials_delete
+          :map_create_user
+          | :map_create_ip
+          | :password_reset_ip
+          | :password_reset_email
+          | :campfire_credentials_delete
           | :campfire_credentials_save
           | :campfire_credentials_validate
           | :login_magic_email

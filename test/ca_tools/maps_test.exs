@@ -5,6 +5,7 @@ defmodule CATools.MapsTest do
 
   import CATools.AccountsFixtures
   import CATools.MapsFixtures
+  use Oban.Testing, repo: CATools.Repo
 
   describe "normalize_source_urls/1" do
     test "normalizes supported Campfire URLs, strips fragments, and removes duplicates" do
@@ -62,6 +63,10 @@ defmodule CATools.MapsTest do
       assert is_binary(map.public_slug)
       assert map.sources_count == 2
 
+      assert [job] = all_enqueued(worker: CATools.Campfire.BatchScheduler)
+      assert job.args == %{"user_id" => scope.user.id}
+      assert all_enqueued(worker: CATools.Campfire.ImportJob) == []
+
       assert Enum.sort(Enum.map(map.sources, & &1.original_url)) == [
                "https://campfire.nianticlabs.com/discover/meetups/xyz987",
                "https://cmpf.re/abc123"
@@ -76,7 +81,7 @@ defmodule CATools.MapsTest do
           "visibility" => "private"
         })
 
-      assert "Line 1: unsupported host example.com. Only cmpf.re and campfire.nianticlabs.com are allowed." in errors_on(
+      assert "Line 1: unsupported host example.com. Only cmpf.re, campfire.nianticlabs.com and niantic-social.nianticlabs.com are allowed." in errors_on(
                changeset
              ).source_urls_input
     end

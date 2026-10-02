@@ -32,6 +32,7 @@ defmodule CATools.Maps.MapSource do
     field :last_fetched_at, :utc_datetime
     field :next_fetch_at, :utc_datetime
 
+    belongs_to :batch, CATools.Maps.ImportBatch, foreign_key: :import_batch_id
     belongs_to :map, UserMap
     has_one :point, MapPoint
 

@@ -44,7 +44,11 @@ config :ca_tools, :runtime_secrets, credentials_master_key_base64: credentials_m
 
 config :ca_tools, Oban,
   repo: CATools.Repo,
-  plugins: [{Oban.Plugins.Pruner, max_age: 60 * 60 * 24 * 7}],
+  plugins: [
+    {Oban.Plugins.Pruner, max_age: 60 * 60 * 24 * 7},
+    {Oban.Plugins.Lifeline, rescue_after: :timer.minutes(5)},
+    {Oban.Plugins.Cron, crontab: [{"* * * * *", CATools.Campfire.MaintenanceJob}]}
+  ],
   queues: [
     imports: oban_import_queue_limit,
     retries: oban_retry_queue_limit,

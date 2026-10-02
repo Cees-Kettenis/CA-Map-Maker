@@ -34,6 +34,7 @@ defmodule CATools.Maps.UserMap do
     field :source_urls_input, :string, virtual: true
 
     belongs_to :user, User
+    has_many :batches, CATools.Maps.ImportBatch, foreign_key: :map_id
     has_many :sources, MapSource, foreign_key: :map_id
     has_many :points, MapPoint, foreign_key: :map_id
 
@@ -48,6 +49,17 @@ defmodule CATools.Maps.UserMap do
     map
     |> cast(attrs, [:name, :description, :visibility, :source_urls_input])
     |> validate_required([:name, :visibility, :source_urls_input])
+    |> validate_length(:name, max: 160)
+    |> validate_length(:description, max: 2_000)
+    |> unique_constraint(:public_slug)
+  end
+
+  @doc "Validates editable map metadata without requiring new source links."
+  @spec changeset(t(), map()) :: Ecto.Changeset.t()
+  def changeset(map, attrs) do
+    map
+    |> cast(attrs, [:name, :description, :visibility])
+    |> validate_required([:name, :visibility])
     |> validate_length(:name, max: 160)
     |> validate_length(:description, max: 2_000)
     |> unique_constraint(:public_slug)

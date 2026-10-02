@@ -21,6 +21,9 @@ defmodule CATools.Campfire.Importer do
       nil ->
         {:error, :not_found}
 
+      %MapSource{status: :skipped, error_code: "cancelled"} = source ->
+        {:ok, source}
+
       %MapSource{} = source ->
         source
         |> mark_processing()
@@ -62,11 +65,29 @@ defmodule CATools.Campfire.Importer do
       {:error, :not_found} ->
         {:error, :not_found}
 
+      {:error, %Changeset{} = changeset} ->
+        case Keyword.has_key?(changeset.errors, :campfire_id) do
+          true ->
+            source
+            |> Changeset.change(
+              status: :skipped,
+              error_code: "duplicate_event",
+              error_message: "This event is already included in this map."
+            )
+            |> Repo.update()
+
+          false ->
+            fail_source(source, %{
+              code: "invalid_data",
+              message: "Campfire data could not be saved."
+            })
+        end
+
+      {:error, :cancelled} ->
+        {:ok, Repo.get!(MapSource, source.id)}
+
       {:error, %{} = error_details} ->
         fail_source(source, error_details)
-
-      {:error, %Changeset{} = changeset} ->
-        {:error, changeset}
 
       {:error, reason} ->
         fail_source(source, %{code: "import_failed", message: inspect(reason)})
@@ -79,6 +100,13 @@ defmodule CATools.Campfire.Importer do
 
   defp persist_import(source, resolved_source, point_attrs) do
     Repo.transact(fn ->
+      Repo.query!("SELECT pg_advisory_xact_lock(73191, $1)", [source.map.user_id])
+
+      batch =
+        if source.import_batch_id, do: Repo.get(CATools.Maps.ImportBatch, source.import_batch_id)
+
+      if batch && batch.status == :cancelled, do: Repo.rollback(:cancelled)
+
       with {:ok, updated_source} <- update_source(source, resolved_source),
            {:ok, _point} <- upsert_point(source, point_attrs),
            {:ok, _map} <- refresh_map_counters(Repo, updated_source.map_id) do
@@ -110,6 +138,7 @@ defmodule CATools.Campfire.Importer do
       error_message: nil,
       last_fetched_at: DateTime.utc_now(:second)
     )
+    |> Changeset.unique_constraint(:campfire_id, name: :map_sources_map_id_campfire_id_index)
     |> Repo.update()
   end
 
@@ -156,12 +185,32 @@ defmodule CATools.Campfire.Importer do
   end
 
   defp fail_source(source, error_details) do
-    source
-    |> Changeset.change(
-      status: :failed,
-      error_code: error_details.code,
-      error_message: error_details.message
-    )
-    |> Repo.update()
+    Repo.transact(fn ->
+      Repo.query!("SELECT pg_advisory_xact_lock(73191, $1)", [source.map.user_id])
+      current = Repo.get(MapSource, source.id)
+
+      batch =
+        if source.import_batch_id, do: Repo.get(CATools.Maps.ImportBatch, source.import_batch_id)
+
+      cond do
+        is_nil(current) ->
+          {:error, :not_found}
+
+        batch && batch.status == :cancelled ->
+          {:ok, current}
+
+        current.import_batch_id != source.import_batch_id ->
+          {:ok, current}
+
+        true ->
+          current
+          |> Changeset.change(
+            status: :failed,
+            error_code: error_details.code,
+            error_message: error_details.message
+          )
+          |> Repo.update()
+      end
+    end)
   end
 end

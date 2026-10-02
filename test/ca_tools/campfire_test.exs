@@ -2,12 +2,13 @@ defmodule CATools.CampfireTest do
   use CATools.DataCase, async: true
 
   alias CATools.Accounts
-  alias CATools.Campfire.{DataNormalizer, GraphQLClient, Importer, LinkResolver}
+  alias CATools.Campfire.{DataNormalizer, GraphQLClient, Importer, ImportJob, LinkResolver}
   alias CATools.Maps.MapPoint
   alias CATools.Repo
 
   import CATools.AccountsFixtures
   import CATools.MapsFixtures
+  use Oban.Testing, repo: CATools.Repo
 
   describe "LinkResolver.resolve_source_url/2" do
     test "accepts the singular discover meetup path used by campfire-tools" do
@@ -460,6 +461,10 @@ defmodule CATools.CampfireTest do
 
       assert Repo.aggregate(MapPoint, :count) == 1
       assert Repo.get!(MapPoint, point.id).title == "Updated Meetup"
+    end
+
+    test "the worker cancels sources that no longer exist" do
+      assert {:cancel, :not_found} = perform_job(ImportJob, %{"source_id" => -1})
     end
   end
 end

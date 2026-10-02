@@ -6,8 +6,9 @@ defmodule CATools.Maps do
   import Ecto.Query, warn: false
 
   alias CATools.Accounts.Scope
-  alias CATools.Campfire.LinkResolver
-  alias CATools.Maps.{MapSource, UserMap}
+  alias CATools.Campfire.{BatchScheduler, LinkResolver}
+  alias CATools.Maps.{ImportBatch, MapPoint, MapSource, UserMap}
+  alias CATools.RateLimiter
   alias CATools.Repo
   alias Ecto.Changeset
 
@@ -24,7 +25,7 @@ defmodule CATools.Maps do
         UserMap
         |> where([map], map.user_id == ^user_id)
         |> order_by([map], desc: map.inserted_at)
-        |> preload([:sources])
+        |> preload([:sources, :batches])
         |> Repo.all()
 
       _ ->
@@ -37,14 +38,14 @@ defmodule CATools.Maps do
   """
   @spec get_map(Scope.t() | nil, term()) :: UserMap.t() | nil
   def get_map(scope, id) do
-    case authorized_user_id(scope) do
-      {:ok, user_id} ->
+    case {authorized_user_id(scope), Ecto.Type.cast(:id, id)} do
+      {{:ok, user_id}, {:ok, map_id}} ->
         UserMap
-        |> where([map], map.id == ^id and map.user_id == ^user_id)
-        |> preload([:sources, :points])
+        |> where([map], map.id == ^map_id and map.user_id == ^user_id)
+        |> preload([:sources, :points, :batches])
         |> Repo.one()
 
-      :error ->
+      _ ->
         nil
     end
   end
@@ -68,37 +69,40 @@ defmodule CATools.Maps do
   end
 
   @doc """
-  Creates a map and its source URL records for the current scope's user.
+  Creates a map, its source URL records, and import jobs for the current scope's user.
   """
   @spec create_map(Scope.t() | nil, map()) ::
-          {:ok, UserMap.t()} | {:error, Changeset.t()} | {:error, :unauthorized}
+          {:ok, UserMap.t()}
+          | {:error, Changeset.t()}
+          | {:error, :unauthorized}
+          | {:error, {:rate_limited, non_neg_integer()}}
   def create_map(scope, attrs) do
-    case authorized_user_id(scope) do
-      {:ok, user_id} ->
-        changeset =
-          %UserMap{user_id: user_id}
-          |> UserMap.creation_changeset(attrs)
-          |> validate_source_urls()
+    with {:ok, user_id} <- authorized_user_id(scope),
+         :ok <- RateLimiter.check(:map_create_user, Integer.to_string(user_id)) do
+      changeset =
+        %UserMap{user_id: user_id}
+        |> UserMap.creation_changeset(attrs)
+        |> validate_source_urls()
 
-        case changeset.valid? do
-          true ->
-            case normalize_source_urls(Changeset.get_field(changeset, :source_urls_input)) do
-              {:ok, normalized_urls} ->
-                create_map_with_sources(changeset, normalized_urls)
+      case changeset.valid? do
+        true ->
+          case normalize_source_urls(Changeset.get_field(changeset, :source_urls_input)) do
+            {:ok, normalized_urls} ->
+              create_map_with_sources(changeset, normalized_urls)
 
-              {:error, messages} ->
-                {:error,
-                 Enum.reduce(messages, changeset, fn message, current_changeset ->
-                   Changeset.add_error(current_changeset, :source_urls_input, message)
-                 end)}
-            end
+            {:error, messages} ->
+              {:error,
+               Enum.reduce(messages, changeset, fn message, current_changeset ->
+                 Changeset.add_error(current_changeset, :source_urls_input, message)
+               end)}
+          end
 
-          false ->
-            {:error, changeset}
-        end
-
-      :error ->
-        {:error, :unauthorized}
+        false ->
+          {:error, changeset}
+      end
+    else
+      :error -> {:error, :unauthorized}
+      {:error, seconds} -> {:error, {:rate_limited, seconds}}
     end
   end
 
@@ -122,6 +126,209 @@ defmodule CATools.Maps do
     end
   end
 
+  @doc "Finds a public map by its unguessable share slug. Private maps return nil."
+  @spec get_public_map(String.t()) :: UserMap.t() | nil
+  def get_public_map(slug) do
+    Repo.one(
+      from m in UserMap,
+        where: m.public_slug == ^slug and m.visibility == :public,
+        preload: [:points]
+    )
+  end
+
+  @doc "Returns a validated changeset for editing an owned map."
+  @spec change_existing_map(UserMap.t(), map()) :: Changeset.t()
+  def change_existing_map(map, attrs \\ %{}), do: UserMap.changeset(map, attrs)
+
+  @doc "Updates an owned map's name, description and visibility."
+  @spec update_map(Scope.t() | nil, term(), map()) :: {:ok, UserMap.t()} | {:error, term()}
+  def update_map(scope, id, attrs) do
+    case get_map(scope, id) do
+      nil ->
+        {:error, :not_found}
+
+      map ->
+        changeset = UserMap.changeset(map, attrs)
+
+        slug =
+          case {Changeset.get_field(changeset, :visibility), map.public_slug} do
+            {:public, nil} -> maybe_generate_public_slug(:public)
+            {_, slug} -> slug
+          end
+
+        changeset |> Changeset.put_change(:public_slug, slug) |> Repo.update()
+    end
+  end
+
+  @doc "Deletes an owned map, its sources, batches and points."
+  @spec delete_map(Scope.t() | nil, term()) :: {:ok, UserMap.t()} | {:error, term()}
+  def delete_map(scope, id) do
+    case get_map(scope, id) do
+      nil -> {:error, :not_found}
+      map -> Repo.delete(map)
+    end
+  end
+
+  @doc "Queues failed or stale sources for another controlled import."
+  @spec refresh_map(Scope.t() | nil, term(), :failed | :stale | :all) ::
+          {:ok, ImportBatch.t()} | {:error, term()}
+  def refresh_map(scope, id, mode \\ :failed) do
+    case get_map(scope, id) do
+      nil ->
+        {:error, :not_found}
+
+      map ->
+        Repo.transact(fn ->
+          Repo.query!("SELECT pg_advisory_xact_lock(73191, $1)", [map.user_id])
+          cutoff = DateTime.add(DateTime.utc_now(:second), -86_400, :second)
+
+          candidates =
+            from s in MapSource,
+              where: s.map_id == ^map.id and s.status in [:fetched, :failed, :skipped]
+
+          candidates =
+            case mode do
+              :failed ->
+                from s in candidates, where: s.status in [:failed, :skipped]
+
+              :stale ->
+                from s in candidates,
+                  where: s.last_fetched_at < ^cutoff or is_nil(s.last_fetched_at)
+
+              :all ->
+                candidates
+            end
+
+          ids = Repo.all(from s in candidates, select: s.id, lock: "FOR UPDATE")
+          if ids == [], do: Repo.rollback(:no_sources)
+          cancel_source_jobs(ids)
+
+          {:ok, batch} =
+            Repo.insert(
+              Changeset.change(%ImportBatch{},
+                user_id: map.user_id,
+                map_id: map.id,
+                total_count: length(ids)
+              )
+            )
+
+          Repo.update_all(from(s in MapSource, where: s.id in ^ids),
+            set: [
+              status: :pending,
+              next_fetch_at: nil,
+              import_batch_id: batch.id,
+              error_code: nil,
+              error_message: nil
+            ]
+          )
+
+          %{"user_id" => map.user_id} |> BatchScheduler.new() |> Oban.insert!()
+          {:ok, batch}
+        end)
+    end
+  end
+
+  @doc "Stops further processing for an owned import batch. Already imported points remain."
+  @spec cancel_batch(Scope.t() | nil, term(), term()) :: {:ok, ImportBatch.t()} | {:error, term()}
+  def cancel_batch(scope, map_id, batch_id) do
+    with %UserMap{} = map <- get_map(scope, map_id),
+         {:ok, id} <- Ecto.Type.cast(:id, batch_id),
+         %ImportBatch{} = batch <- Repo.get_by(ImportBatch, id: id, map_id: map.id) do
+      Repo.transact(fn ->
+        Repo.query!("SELECT pg_advisory_xact_lock(73191, $1)", [map.user_id])
+
+        source_ids = Repo.all(from s in MapSource, where: s.import_batch_id == ^id, select: s.id)
+
+        cancel_source_jobs(source_ids)
+
+        Repo.update_all(
+          from(s in MapSource,
+            where: s.import_batch_id == ^id and s.status in [:pending, :processing, :failed]
+          ),
+          set: [status: :skipped, error_code: "cancelled", error_message: "Import cancelled."]
+        )
+
+        Repo.update(Changeset.change(batch, status: :cancelled))
+      end)
+    else
+      _ -> {:error, :not_found}
+    end
+  end
+
+  @doc "Updates batch progress from its source records."
+  @spec refresh_batch(integer() | nil) :: :ok
+  def refresh_batch(batch_id) do
+    if batch_id do
+      batch = Repo.get(ImportBatch, batch_id)
+
+      if batch && batch.status != :cancelled do
+        counts =
+          Repo.all(
+            from s in MapSource,
+              where: s.import_batch_id == ^batch_id,
+              group_by: s.status,
+              select: {s.status, count(s.id)}
+          )
+          |> Map.new()
+
+        success = Map.get(counts, :fetched, 0)
+        failed = Map.get(counts, :failed, 0) + Map.get(counts, :skipped, 0)
+
+        status =
+          cond do
+            success + failed < batch.total_count -> :processing
+            failed > 0 -> :completed_with_errors
+            true -> :completed
+          end
+
+        Repo.update_all(
+          from(b in ImportBatch, where: b.id == ^batch_id and b.status != :cancelled),
+          set: [
+            processed_count: success + failed,
+            success_count: success,
+            failed_count: failed,
+            status: status
+          ]
+        )
+      end
+    end
+
+    :ok
+  end
+
+  @doc "Returns only safe marker metadata. Owner views may include source links."
+  @spec point_data(UserMap.t(), boolean()) :: [map()]
+  def point_data(map, owner? \\ false) do
+    Enum.map(map.points, fn %MapPoint{} = point ->
+      data =
+        Map.take(point, [
+          :id,
+          :title,
+          :group_name,
+          :description,
+          :latitude,
+          :longitude,
+          :address,
+          :starts_at,
+          :ends_at
+        ])
+
+      if owner?, do: Map.put(data, :source_url, point.source_url), else: data
+    end)
+  end
+
+  defp cancel_source_jobs(source_ids) do
+    Repo.all(
+      from j in Oban.Job,
+        where:
+          j.worker == "CATools.Campfire.ImportJob" and
+            j.state in ["available", "scheduled", "executing", "retryable"],
+        where: fragment("(?->>'source_id')::bigint", j.args) in ^source_ids,
+        select: j.id
+    )
+    |> Enum.each(&Oban.cancel_job/1)
+  end
+
   defp validate_source_urls(changeset) do
     input = Changeset.get_field(changeset, :source_urls_input)
 
@@ -141,6 +348,9 @@ defmodule CATools.Maps do
       [] ->
         {:error, ["Enter at least one Campfire link."]}
 
+      lines when length(lines) > 10_000 ->
+        {:error, ["A map import can contain at most 10,000 links."]}
+
       _ ->
         {normalized_urls, errors, _seen_urls} =
           lines
@@ -154,7 +364,7 @@ defmodule CATools.Maps do
                     {urls, messages, seen_urls}
 
                   false ->
-                    {urls ++ [normalized_url], messages, MapSet.put(seen_urls, normalized_url)}
+                    {[normalized_url | urls], messages, MapSet.put(seen_urls, normalized_url)}
                 end
 
               {:error, message} ->
@@ -170,7 +380,7 @@ defmodule CATools.Maps do
             {:error, messages}
 
           {_count, []} ->
-            {:ok, normalized_urls}
+            {:ok, Enum.reverse(normalized_urls)}
         end
     end
   end
@@ -202,14 +412,24 @@ defmodule CATools.Maps do
     Repo.transact(fn ->
       case Repo.insert(final_changeset) do
         {:ok, map} ->
+          {:ok, batch} =
+            Repo.insert(
+              Changeset.change(%ImportBatch{},
+                user_id: map.user_id,
+                map_id: map.id,
+                total_count: length(source_entries)
+              )
+            )
+
           inserted_sources =
             Enum.map(source_entries, fn entry ->
-              Map.put(entry, :map_id, map.id)
+              Map.merge(entry, %{map_id: map.id, import_batch_id: batch.id})
             end)
 
           case Repo.insert_all(MapSource, inserted_sources) do
             {count, _} when count == length(inserted_sources) ->
-              {:ok, Repo.preload(map, :sources)}
+              %{"user_id" => map.user_id} |> BatchScheduler.new() |> Oban.insert!()
+              {:ok, Repo.preload(map, [:sources, :batches])}
 
             other ->
               Repo.rollback({:sources, other})
