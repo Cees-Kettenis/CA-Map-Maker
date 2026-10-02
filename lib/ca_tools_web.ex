@@ -19,7 +19,7 @@ defmodule CAToolsWeb do
 
   @doc false
   @spec static_paths() :: [String.t()]
-  def static_paths, do: ~w(assets fonts images favicon.ico robots.txt)
+  def static_paths, do: ~w(assets vendor fonts images favicon.ico robots.txt openapi.json)
 
   @doc false
   @spec router() :: Macro.t()

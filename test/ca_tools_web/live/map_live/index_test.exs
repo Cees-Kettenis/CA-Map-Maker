@@ -26,7 +26,7 @@ defmodule CAToolsWeb.MapLive.IndexTest do
         |> log_in_user(user)
         |> live(~p"/dashboard/maps")
 
-      assert html =~ "Map Dashboard"
+      assert html =~ "My Maps"
       assert html =~ "My Map"
       refute html =~ "Other Map"
     end
@@ -54,7 +54,7 @@ defmodule CAToolsWeb.MapLive.IndexTest do
 
       assert html =~ "Map created. Campfire links have been queued for import."
       assert html =~ "Bay Area Map"
-      assert html =~ ">2<"
+      assert html =~ "2 Sources"
     end
 
     test "shows validation errors for unsupported links", %{conn: conn} do

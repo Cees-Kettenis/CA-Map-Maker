@@ -41,6 +41,10 @@ if not match?({:ok, <<_::256>>}, Base.decode64(credentials_master_key_base64)) d
   raise "CREDENTIALS_MASTER_KEY_BASE64 must be a base64-encoded 32-byte key"
 end
 
+config :ca_tools,
+       :map_tile_url,
+       System.get_env("MAP_TILE_URL", "https://tile.openstreetmap.org/{z}/{x}/{y}.png")
+
 config :ca_tools, CATools.Campfire.GraphQLClient,
   endpoint:
     System.get_env(

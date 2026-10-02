@@ -1,0 +1,505 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Campfire Atlas",
+    "version": "0.1.0"
+  },
+  "paths": {
+    "/maps/{slug}/points": {
+      "get": {
+        "operationId": "publicMapPoints",
+        "summary": "Public-safe meetup markers",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "slug",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "name": {
+                      "type": "string"
+                    },
+                    "description": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "points": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Point"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Map not found or inaccessible"
+          }
+        }
+      }
+    },
+    "/maps/{slug}/export.kml": {
+      "get": {
+        "operationId": "publicMapKml",
+        "summary": "Public KML without source links",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "slug",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/vnd.google-earth.kml+xml": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Map not found or inaccessible"
+          }
+        }
+      }
+    },
+    "/dashboard/maps/{id}/export.kml": {
+      "get": {
+        "operationId": "ownerMapKml",
+        "summary": "Owner-only KML with source links",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/vnd.google-earth.kml+xml": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Map not found or inaccessible"
+          },
+          "302": {
+            "description": "Login required"
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ]
+      }
+    },
+    "/auth/users/confirm/{token}": {
+      "get": {
+        "operationId": "confirmAccount",
+        "summary": "Confirm a password signup with a single-use token",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "token",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "302": {
+            "description": "Redirect to login with confirmation status"
+          }
+        }
+      }
+    },
+    "/auth/users/reset-password/{token}": {
+      "post": {
+        "operationId": "resetPassword",
+        "summary": "Reset a password and revoke existing sessions",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "token",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "user[password]",
+                  "user[password_confirmation]",
+                  "_csrf_token"
+                ],
+                "properties": {
+                  "user[password]": {
+                    "type": "string",
+                    "minLength": 12,
+                    "maxLength": 72
+                  },
+                  "user[password_confirmation]": {
+                    "type": "string"
+                  },
+                  "_csrf_token": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "302": {
+            "description": "Redirect with reset status"
+          },
+          "403": {
+            "description": "Invalid CSRF token"
+          }
+        }
+      }
+    },
+    "/": {
+      "get": {
+        "operationId": "home",
+        "summary": "Landing page",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "HTML page"
+          },
+          "302": {
+            "description": "Authentication redirect"
+          },
+          "404": {
+            "description": "Not found"
+          }
+        }
+      }
+    },
+    "/dashboard/maps": {
+      "get": {
+        "operationId": "mapDashboard",
+        "summary": "Owner dashboard and creation form",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "HTML page"
+          },
+          "302": {
+            "description": "Authentication redirect"
+          },
+          "404": {
+            "description": "Not found"
+          }
+        }
+      }
+    },
+    "/dashboard/maps/{id}": {
+      "get": {
+        "operationId": "ownerMap",
+        "summary": "Owner map editor",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "HTML page"
+          },
+          "302": {
+            "description": "Authentication redirect"
+          },
+          "404": {
+            "description": "Not found"
+          }
+        }
+      }
+    },
+    "/maps/{slug}": {
+      "get": {
+        "operationId": "publicMap",
+        "summary": "Public community map",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "slug",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "HTML page"
+          },
+          "302": {
+            "description": "Authentication redirect"
+          },
+          "404": {
+            "description": "Not found"
+          }
+        }
+      }
+    },
+    "/auth/users/register": {
+      "get": {
+        "operationId": "registerForm",
+        "summary": "Registration form",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "HTML page"
+          },
+          "302": {
+            "description": "Authentication redirect"
+          },
+          "404": {
+            "description": "Not found"
+          }
+        }
+      },
+      "post": {
+        "operationId": "registerAccount",
+        "summary": "Register and send confirmation instructions",
+        "description": "Browser form endpoint. Requires a valid _csrf_token. Authentication and sensitive changes use session cookies.",
+        "responses": {
+          "200": {
+            "description": "Validation form"
+          },
+          "302": {
+            "description": "Redirect with outcome"
+          },
+          "403": {
+            "description": "Invalid CSRF token"
+          }
+        }
+      }
+    },
+    "/auth/users/log-in": {
+      "get": {
+        "operationId": "loginForm",
+        "summary": "Login form",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "HTML page"
+          },
+          "302": {
+            "description": "Authentication redirect"
+          },
+          "404": {
+            "description": "Not found"
+          }
+        }
+      },
+      "post": {
+        "operationId": "loginAccount",
+        "summary": "Login by confirmed token or password",
+        "description": "Browser form endpoint. Requires a valid _csrf_token. Authentication and sensitive changes use session cookies.",
+        "responses": {
+          "200": {
+            "description": "Validation form"
+          },
+          "302": {
+            "description": "Redirect with outcome"
+          },
+          "403": {
+            "description": "Invalid CSRF token"
+          }
+        }
+      }
+    },
+    "/auth/users/settings": {
+      "get": {
+        "operationId": "accountSettings",
+        "summary": "Account and Campfire token settings",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "HTML page"
+          },
+          "302": {
+            "description": "Authentication redirect"
+          },
+          "404": {
+            "description": "Not found"
+          }
+        }
+      },
+      "put": {
+        "operationId": "updateAccountEmail",
+        "summary": "Update the email of a reauthenticated account",
+        "description": "Browser form endpoint. Requires a valid _csrf_token. Authentication and sensitive changes use session cookies.",
+        "responses": {
+          "200": {
+            "description": "Validation form"
+          },
+          "302": {
+            "description": "Redirect with outcome"
+          },
+          "403": {
+            "description": "Invalid CSRF token"
+          }
+        }
+      }
+    },
+    "/auth/users/reset-password": {
+      "get": {
+        "operationId": "passwordRecovery",
+        "summary": "Password recovery form",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "HTML page"
+          },
+          "302": {
+            "description": "Authentication redirect"
+          },
+          "404": {
+            "description": "Not found"
+          }
+        }
+      }
+    },
+    "/auth/users/log-out": {
+      "delete": {
+        "operationId": "logoutAccount",
+        "summary": "Revoke the current session",
+        "description": "Browser form endpoint. Requires a valid _csrf_token. Authentication and sensitive changes use session cookies.",
+        "responses": {
+          "200": {
+            "description": "Validation form"
+          },
+          "302": {
+            "description": "Redirect with outcome"
+          },
+          "403": {
+            "description": "Invalid CSRF token"
+          }
+        }
+      }
+    },
+    "/auth/users/update-password": {
+      "post": {
+        "operationId": "updateAccountPassword",
+        "summary": "Update password and revoke previous sessions",
+        "description": "Browser form endpoint. Requires a valid _csrf_token. Authentication and sensitive changes use session cookies.",
+        "responses": {
+          "200": {
+            "description": "Validation form"
+          },
+          "302": {
+            "description": "Redirect with outcome"
+          },
+          "403": {
+            "description": "Invalid CSRF token"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Point": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "integer",
+            "nullable": false
+          },
+          "title": {
+            "type": "string",
+            "nullable": false
+          },
+          "group_name": {
+            "type": "string",
+            "nullable": true
+          },
+          "description": {
+            "type": "string",
+            "nullable": true
+          },
+          "latitude": {
+            "type": "number",
+            "nullable": false
+          },
+          "longitude": {
+            "type": "number",
+            "nullable": false
+          },
+          "address": {
+            "type": "string",
+            "nullable": true
+          },
+          "starts_at": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time"
+          },
+          "ends_at": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "latitude",
+          "longitude"
+        ]
+      }
+    },
+    "securitySchemes": {
+      "sessionCookie": {
+        "type": "apiKey",
+        "in": "cookie",
+        "name": "_ca_tools_key"
+      }
+    }
+  }
+}

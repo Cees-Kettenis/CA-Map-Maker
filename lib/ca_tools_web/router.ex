@@ -21,6 +21,12 @@ defmodule CAToolsWeb.Router do
     pipe_through :browser
 
     get "/", PageController, :home
+    get "/maps/:slug/points", MapController, :public_points
+    get "/maps/:slug/export.kml", MapController, :public_export
+
+    live_session :public_maps, on_mount: [{CAToolsWeb.Auth.UserAuth, :mount_current_scope}] do
+      live "/maps/:slug", MapLive.Public, :show
+    end
   end
 
   # Other scopes may use custom stacks.
@@ -71,9 +77,12 @@ defmodule CAToolsWeb.Router do
   scope "/", CAToolsWeb do
     pipe_through [:browser, :require_authenticated_user]
 
+    get "/dashboard/maps/:id/export.kml", MapController, :owner_export
+
     live_session :authenticated_maps,
       on_mount: [{CAToolsWeb.Auth.UserAuth, :require_authenticated}] do
       live "/dashboard/maps", MapLive.Index, :index
+      live "/dashboard/maps/:id", MapLive.Show, :show
     end
   end
 
