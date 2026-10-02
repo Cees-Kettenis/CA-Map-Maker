@@ -16,10 +16,16 @@ defmodule CATools.Campfire.GraphQLClient do
       id
       name
       details
+      coverPhotoUrl
       eventTime
       eventEndTime
       address
       location
+      creator {
+        displayName
+        username
+        avatarUrl
+      }
       club {
         id
         name

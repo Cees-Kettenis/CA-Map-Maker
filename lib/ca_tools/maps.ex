@@ -313,12 +313,29 @@ defmodule CATools.Maps do
   @doc "Returns only safe marker metadata. Owner views may include source links."
   @spec point_data(UserMap.t(), boolean()) :: [map()]
   def point_data(map, owner? \\ false) do
-    Enum.map(map.points, fn %MapPoint{} = point ->
+    now = DateTime.utc_now()
+
+    map.points
+    |> Enum.sort_by(fn point ->
+      case point.starts_at do
+        nil ->
+          {2, 0, point.id}
+
+        starts_at ->
+          if DateTime.compare(starts_at, now) == :lt do
+            {1, -DateTime.to_unix(starts_at), point.id}
+          else
+            {0, DateTime.to_unix(starts_at), point.id}
+          end
+      end
+    end)
+    |> Enum.map(fn %MapPoint{} = point ->
       data =
         Map.take(point, [
           :id,
           :title,
           :group_name,
+          :host_name,
           :description,
           :latitude,
           :longitude,
@@ -326,6 +343,11 @@ defmodule CATools.Maps do
           :starts_at,
           :ends_at
         ])
+
+      data =
+        data
+        |> Map.put(:cover_photo_url, CATools.Maps.ImageURL.normalize(point.cover_photo_url))
+        |> Map.put(:host_avatar_url, CATools.Maps.ImageURL.normalize(point.host_avatar_url))
 
       if owner?, do: Map.put(data, :source_url, point.source_url), else: data
     end)

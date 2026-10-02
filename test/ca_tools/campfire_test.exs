@@ -169,6 +169,10 @@ defmodule CATools.CampfireTest do
         assert request["operationName"] == "CampfireMapSource"
         assert request["query"] == GraphQLClient.resource_query()
         assert request["query"] =~ "event(id: $id)"
+        assert request["query"] =~ "coverPhotoUrl"
+        assert request["query"] =~ "creator {"
+        assert request["query"] =~ "displayName"
+        assert request["query"] =~ "avatarUrl"
         refute request["query"] =~ "node(id:"
 
         Req.Test.json(conn, %{
@@ -300,6 +304,75 @@ defmodule CATools.CampfireTest do
         assert attrs.latitude == 3.139
         assert attrs.longitude == 101.6869
         assert attrs.group_name == nil
+      end
+    end
+
+    test "cover photo URLs are normalized and unsafe or absent URLs are omitted" do
+      for {url, expected} <- [
+            {" https://cdn.example.com/cover.jpg ", "https://cdn.example.com/cover.jpg"},
+            {nil, nil},
+            {"", nil},
+            {"javascript:alert(1)", nil},
+            {"data:image/svg+xml,bad", nil},
+            {"https://user:password@example.com/cover.jpg", nil}
+          ] do
+        assert {:ok, attrs} =
+                 DataNormalizer.normalize_map_point(
+                   %{
+                     campfire_id: "event",
+                     resource_type: :event,
+                     resource: %{
+                       "name" => "Meetup",
+                       "location" => "[101,3]",
+                       "coverPhotoUrl" => url
+                     }
+                   },
+                   %{
+                     campfire_id: "event",
+                     resource_type: :event,
+                     resolved_url: "https://campfire.nianticlabs.com/discover/events/event"
+                   }
+                 )
+
+        assert attrs.cover_photo_url == expected
+      end
+    end
+
+    test "host name falls back to username and profile pictures use safe URLs" do
+      for {creator, name, avatar} <- [
+            {%{
+               "displayName" => "  Host Name  ",
+               "username" => "username",
+               "avatarUrl" => "https://cdn.example.com/avatar.jpg"
+             }, "Host Name", "https://cdn.example.com/avatar.jpg"},
+            {%{
+               "displayName" => " ",
+               "username" => "trainer",
+               "avatarUrl" => "javascript:alert(1)"
+             }, "trainer", nil},
+            {nil, nil, nil},
+            {"invalid", nil, nil}
+          ] do
+        assert {:ok, attrs} =
+                 DataNormalizer.normalize_map_point(
+                   %{
+                     campfire_id: "event",
+                     resource_type: :event,
+                     resource: %{
+                       "name" => "Meetup",
+                       "location" => "[101,3]",
+                       "creator" => creator
+                     }
+                   },
+                   %{
+                     campfire_id: "event",
+                     resource_type: :event,
+                     resolved_url: "https://campfire.nianticlabs.com/discover/events/event"
+                   }
+                 )
+
+        assert attrs.host_name == name
+        assert attrs.host_avatar_url == avatar
       end
     end
 

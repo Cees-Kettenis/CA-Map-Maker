@@ -1,3 +1,21 @@
+function meetupImage(value, alt, className) {
+  if (!value) return null
+  try {
+    const url = new URL(value)
+    if (url.protocol !== 'https:' || url.username || url.password || url.port) return null
+    const image = document.createElement('img')
+    image.src = url.href
+    image.alt = alt
+    image.loading = 'lazy'
+    image.referrerPolicy = 'no-referrer'
+    image.className = className
+    image.addEventListener('error', () => { image.hidden = true })
+    return image
+  } catch {
+    return null
+  }
+}
+
 export const AtlasMap = {
   mounted() {
     const canvas = this.el.querySelector('[data-map-canvas]')
@@ -18,35 +36,63 @@ export const AtlasMap = {
     this.lastData = data
     const points = JSON.parse(data)
     this.markers.clearLayers()
-    points.forEach((point, index) => {
+    const locations = new Map()
+    points.forEach(point => {
+      const key = JSON.stringify([point.latitude, point.longitude])
+      if (!locations.has(key)) locations.set(key, [])
+      locations.get(key).push(point)
+    })
+    Array.from(locations.values()).forEach((meetups, index) => {
+      const point = meetups[0]
       const popup = document.createElement('div')
       popup.className = 'atlas-popup'
-      const title = document.createElement('h3')
-      title.textContent = point.title
-      popup.appendChild(title)
-      for (const value of [point.group_name, point.description, point.address,
-        point.starts_at && new Date(point.starts_at).toLocaleString()]) {
-        if (!value) continue
-        const line = document.createElement('p')
-        line.textContent = value
-        popup.appendChild(line)
-      }
-      if (point.source_url) {
-        const source = new URL(point.source_url)
-        if (['http:', 'https:'].includes(source.protocol)) {
-          const link = document.createElement('a')
-          link.href = source.href
-          link.target = '_blank'
-          link.rel = 'noopener noreferrer'
-          link.textContent = 'View on Campfire'
-          popup.appendChild(link)
+      meetups.forEach(meetup => {
+        const section = document.createElement('section')
+        section.className = 'atlas-popup-meetup'
+        const cover = meetupImage(meetup.cover_photo_url, meetup.title, 'atlas-meetup-image')
+        if (cover) section.appendChild(cover)
+        const title = document.createElement('h3')
+        title.textContent = meetup.title
+        section.appendChild(title)
+        if (meetup.host_name || meetup.host_avatar_url) {
+          const host = document.createElement('div')
+          host.className = 'atlas-meetup-host'
+          const avatar = meetupImage(meetup.host_avatar_url, '', '')
+          if (avatar) host.appendChild(avatar)
+          const name = document.createElement('span')
+          name.textContent = `Hosted by ${meetup.host_name || 'Campfire host'}`
+          host.appendChild(name)
+          section.appendChild(host)
         }
-      }
+        for (const value of [meetup.group_name, meetup.description, meetup.address,
+          meetup.starts_at && new Date(meetup.starts_at).toLocaleString()]) {
+          if (!value) continue
+          const line = document.createElement('p')
+          line.textContent = value
+          section.appendChild(line)
+        }
+        if (meetup.source_url) {
+          try {
+            const source = new URL(meetup.source_url)
+            if (['http:', 'https:'].includes(source.protocol)) {
+              const link = document.createElement('a')
+              link.href = source.href
+              link.target = '_blank'
+              link.rel = 'noopener noreferrer'
+              link.textContent = 'View on Campfire'
+              section.appendChild(link)
+            }
+          } catch { /* Keep the remaining meetup details if its source link is invalid. */ }
+        }
+        popup.appendChild(section)
+      })
+      const count = meetups.length > 1 ? `<small class="atlas-pin-count">${meetups.length}</small>` : ''
       window.L.marker([point.latitude, point.longitude], {
-        title: point.title,
+        title: meetups.length > 1 ? `${point.title} · ${meetups.length} meetups` : point.title,
+        zIndexOffset: (locations.size - index) * 100,
         icon: window.L.divIcon({className: '', iconSize: [28, 28], iconAnchor: [14, 28],
-          html: `<div class="atlas-pin"><span>${index + 1}</span></div>`}),
-      }).bindPopup(popup).addTo(this.markers)
+          html: `<div class="atlas-pin"><span>${index + 1}</span>${count}</div>`}),
+      }).bindPopup(popup, {maxWidth: 340, maxHeight: 420}).addTo(this.markers)
     })
     if (points.length) this.map.fitBounds(this.markers.getBounds(), {padding: [45, 45], maxZoom: 14})
   },
@@ -55,11 +101,12 @@ export const AtlasMap = {
 
 export const CopyLink = {
   mounted() {
+    const label = this.el.textContent.trim()
     this.el.addEventListener('click', async () => {
       try {
         await navigator.clipboard.writeText(this.el.dataset.url)
         this.el.textContent = 'Link copied'
-        setTimeout(() => { if (this.el.isConnected) this.el.textContent = 'Copy share link' }, 2000)
+        setTimeout(() => { if (this.el.isConnected) this.el.textContent = label }, 2000)
       } catch {
         const field = document.querySelector(this.el.dataset.target)
         if (field) { field.focus(); field.select() }

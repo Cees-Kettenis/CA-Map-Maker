@@ -15,6 +15,40 @@ defmodule CAToolsWeb.MapComponents do
     """
   end
 
+  attr :image_url, :string, default: nil
+  attr :title, :string, required: true
+  @doc "Renders an optional meetup cover image without sending the page URL to its host."
+  @spec meetup_image(map()) :: Phoenix.LiveView.Rendered.t()
+  def meetup_image(assigns) do
+    assigns = assign(assigns, :image_url, CATools.Maps.ImageURL.normalize(assigns.image_url))
+
+    ~H"""
+    <img
+      :if={@image_url}
+      src={@image_url}
+      alt={@title}
+      loading="lazy"
+      referrerpolicy="no-referrer"
+      class="atlas-meetup-image"
+    />
+    """
+  end
+
+  attr :name, :string, default: nil
+  attr :avatar_url, :string, default: nil
+  @doc "Displays the meetup creator's name and optional profile picture."
+  @spec meetup_host(map()) :: Phoenix.LiveView.Rendered.t()
+  def meetup_host(assigns) do
+    assigns = assign(assigns, :avatar_url, CATools.Maps.ImageURL.normalize(assigns.avatar_url))
+
+    ~H"""
+    <div :if={@name || @avatar_url} class="atlas-meetup-host">
+      <img :if={@avatar_url} src={@avatar_url} alt="" loading="lazy" referrerpolicy="no-referrer" />
+      <span>Hosted by <strong>{@name || "Campfire host"}</strong></span>
+    </div>
+    """
+  end
+
   attr :id, :string, required: true
   attr :points, :list, required: true
   @doc "Renders a Leaflet map with escaped JSON and a stable canvas."

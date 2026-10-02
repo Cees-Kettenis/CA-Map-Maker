@@ -52,6 +52,12 @@ defmodule CATools.Campfire.ImportJobTest do
                 "id" => "event-123",
                 "name" => "Raid Hour",
                 "details" => "Meet at the park",
+                "coverPhotoUrl" => "https://cdn.example.com/cover.jpg",
+                "creator" => %{
+                  "displayName" => "Trainer Host",
+                  "username" => "trainer",
+                  "avatarUrl" => "https://cdn.example.com/avatar.jpg"
+                },
                 "location" => "[101.6869,3.139]",
                 "club" => %{"name" => "City Raiders"},
                 "eventTime" => "2026-10-02T10:00:00.123Z"
@@ -66,6 +72,9 @@ defmodule CATools.Campfire.ImportJobTest do
     point = Repo.get_by!(MapPoint, map_source_id: source.id)
     assert point.title == "Raid Hour"
     assert point.description == "Meet at the park"
+    assert point.cover_photo_url == "https://cdn.example.com/cover.jpg"
+    assert point.host_name == "Trainer Host"
+    assert point.host_avatar_url == "https://cdn.example.com/avatar.jpg"
     assert point.group_name == "City Raiders"
     assert point.latitude == 3.139
     assert point.longitude == 101.6869

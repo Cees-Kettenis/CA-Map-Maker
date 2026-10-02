@@ -85,6 +85,8 @@ defmodule CAToolsWeb.MapLive.Public do
       </div>
       <section class="grid md:grid-cols-3 gap-4 mt-8" aria-label="Meetup locations">
         <article :for={point <- @points} class="atlas-card p-5">
+          <.meetup_image image_url={point.cover_photo_url} title={point.title} />
+          <.meetup_host name={point.host_name} avatar_url={point.host_avatar_url} />
           <h2 class="font-semibold">
             {point.title}
           </h2>

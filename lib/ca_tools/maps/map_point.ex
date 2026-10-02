@@ -13,6 +13,9 @@ defmodule CATools.Maps.MapPoint do
           group_name: String.t() | nil,
           title: String.t() | nil,
           description: String.t() | nil,
+          cover_photo_url: String.t() | nil,
+          host_name: String.t() | nil,
+          host_avatar_url: String.t() | nil,
           latitude: float() | nil,
           longitude: float() | nil,
           address: String.t() | nil,
@@ -27,6 +30,9 @@ defmodule CATools.Maps.MapPoint do
     field :group_name, :string
     field :title, :string
     field :description, :string
+    field :cover_photo_url, :string
+    field :host_name, :string
+    field :host_avatar_url, :string
     field :latitude, :float
     field :longitude, :float
     field :address, :string

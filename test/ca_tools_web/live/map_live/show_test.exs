@@ -5,6 +5,35 @@ defmodule CAToolsWeb.MapLive.ShowTest do
   import CATools.MapsFixtures
   alias CATools.Maps
 
+  test "meetup cards display cover photos and export links are marked as downloads", %{conn: conn} do
+    user = user_fixture()
+    map = map_fixture(user_scope_fixture(user))
+
+    CATools.Repo.insert!(
+      Ecto.Changeset.change(%CATools.Maps.MapPoint{},
+        map_id: map.id,
+        map_source_id: hd(map.sources).id,
+        title: "Cover meetup",
+        latitude: 3.139,
+        longitude: 101.68,
+        cover_photo_url: "https://cdn.example.com/cover.jpg",
+        host_name: "Trainer Host",
+        host_avatar_url: "https://cdn.example.com/avatar.jpg"
+      )
+    )
+
+    {:ok, view, _} = conn |> log_in_user(user) |> live(~p"/dashboard/maps/#{map.id}")
+    assert has_element?(view, "img[src='https://cdn.example.com/cover.jpg'][alt='Cover meetup']")
+    assert has_element?(view, ".atlas-meetup-host", "Trainer Host")
+    assert has_element?(view, ".atlas-meetup-host img[src='https://cdn.example.com/avatar.jpg']")
+    assert has_element?(view, "a[href='/dashboard/maps/#{map.id}/export.kml'][download]")
+    {:ok, map} = Maps.update_map(user_scope_fixture(user), map.id, %{visibility: "public"})
+    {:ok, public, _} = live(conn, ~p"/maps/#{map.public_slug}")
+    assert has_element?(public, "img[src='https://cdn.example.com/cover.jpg']")
+    assert has_element?(public, ".atlas-meetup-host", "Trainer Host")
+    assert has_element?(public, "a[download]")
+  end
+
   test "owner edits metadata and visibility, then deletes their map", %{conn: conn} do
     user = user_fixture()
     map = map_fixture(user_scope_fixture(user))

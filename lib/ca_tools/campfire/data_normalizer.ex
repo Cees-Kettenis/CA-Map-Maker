@@ -11,6 +11,9 @@ defmodule CATools.Campfire.DataNormalizer do
           required(:group_name) => String.t() | nil,
           required(:title) => String.t(),
           required(:description) => String.t() | nil,
+          required(:cover_photo_url) => String.t() | nil,
+          required(:host_name) => String.t() | nil,
+          required(:host_avatar_url) => String.t() | nil,
           required(:latitude) => float(),
           required(:longitude) => float(),
           required(:address) => String.t() | nil,
@@ -35,6 +38,12 @@ defmodule CATools.Campfire.DataNormalizer do
     coordinates = coordinates(resource)
     title = resource["name"] || resource["title"]
 
+    creator =
+      case resource["creator"] do
+        creator when is_map(creator) -> creator
+        _ -> %{}
+      end
+
     with {:ok, latitude, longitude} <- normalize_coordinates(coordinates),
          {:ok, normalized_title} <- normalize_title(title) do
       normalized_payload = %{
@@ -42,6 +51,9 @@ defmodule CATools.Campfire.DataNormalizer do
         group_name: group_name(resource),
         title: normalized_title,
         description: string_or_nil(resource["details"] || resource["description"]),
+        cover_photo_url: CATools.Maps.ImageURL.normalize(resource["coverPhotoUrl"]),
+        host_name: string_or_nil(creator["displayName"]) || string_or_nil(creator["username"]),
+        host_avatar_url: CATools.Maps.ImageURL.normalize(creator["avatarUrl"]),
         latitude: latitude,
         longitude: longitude,
         address: address(resource),

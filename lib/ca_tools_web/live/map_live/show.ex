@@ -49,6 +49,7 @@ defmodule CAToolsWeb.MapLive.Show do
             class="size-4"
           /> Edit map</button><.link
             href={~p"/dashboard/maps/#{@map.id}/export.kml"}
+            download="campfire-map.kml"
             class="atlas-button"
           ><.icon name="hero-arrow-down-tray" class="size-4" /> Export KML</.link>
         </div>
@@ -161,6 +162,8 @@ defmodule CAToolsWeb.MapLive.Show do
         </div>
         <div class="grid md:grid-cols-3 gap-4">
           <article :for={point <- @points} class="atlas-card p-5">
+            <.meetup_image image_url={point.cover_photo_url} title={point.title} />
+            <.meetup_host name={point.host_name} avatar_url={point.host_avatar_url} />
             <h3 class="font-semibold">{point.title}</h3><p class="text-sm opacity-65 mt-2">
               {point.group_name}
             </p><p class="text-xs mt-2 opacity-60">{point.address}</p><p

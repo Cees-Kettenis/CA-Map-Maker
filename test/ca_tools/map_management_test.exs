@@ -6,6 +6,26 @@ defmodule CATools.MapManagementTest do
   import CATools.AccountsFixtures
   import CATools.MapsFixtures
 
+  test "meetups are ordered by the next event, followed by past and undated events" do
+    now = DateTime.utc_now(:second)
+
+    point = fn id, starts_at ->
+      %CATools.Maps.MapPoint{id: id, title: "Meetup #{id}", starts_at: starts_at}
+    end
+
+    map = %CATools.Maps.UserMap{
+      points: [
+        point.(1, DateTime.add(now, 3600)),
+        point.(2, nil),
+        point.(3, DateTime.add(now, -3600)),
+        point.(4, DateTime.add(now, 600)),
+        point.(5, DateTime.add(now, -600))
+      ]
+    }
+
+    assert Enum.map(Maps.point_data(map), & &1.id) == [4, 1, 5, 3, 2]
+  end
+
   test "CRUD operations are owner scoped and changing visibility disables public access" do
     owner = user_scope_fixture()
     other = user_scope_fixture()

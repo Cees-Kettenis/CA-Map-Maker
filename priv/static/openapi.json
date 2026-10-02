@@ -524,6 +524,23 @@
             "type": "string",
             "nullable": true,
             "format": "date-time"
+          },
+          "cover_photo_url": {
+            "type": "string",
+            "format": "uri",
+            "nullable": true,
+            "description": "HTTPS meetup cover image URL, when available."
+          },
+          "host_name": {
+            "type": "string",
+            "nullable": true,
+            "description": "Meetup creator display name, falling back to username."
+          },
+          "host_avatar_url": {
+            "type": "string",
+            "format": "uri",
+            "nullable": true,
+            "description": "HTTPS meetup creator profile image, when available."
           }
         },
         "required": [
