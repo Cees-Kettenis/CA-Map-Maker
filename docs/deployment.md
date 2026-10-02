@@ -22,7 +22,7 @@ openssl rand -base64 32
 
 Optional settings:
 
-- `PORT`, default `4000`.
+- `PORT`, default `5000`.
 - `CAMPFIRE_GRAPHQL_ENDPOINT`, default `https://niantic-social-api.nianticlabs.com/graphql`.
 - `MAP_TILE_URL`, default `https://tile.openstreetmap.org/{z}/{x}/{y}.png`.
 - `OBAN_IMPORT_QUEUE_LIMIT`, default `10`.

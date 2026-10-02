@@ -20,7 +20,7 @@ config :ca_tools, CATools.Repo,
 # We don't run a server during test. If one is required,
 # you can enable the server option below.
 config :ca_tools, CAToolsWeb.Endpoint,
-  http: [ip: {127, 0, 0, 1}, port: 4002],
+  http: [ip: {127, 0, 0, 1}, port: 5002],
   secret_key_base: "fIZ9GNb9yn2SnUhppzyiRXSfzgF1wht9kbFOxpiKcX5zPav4cotT+MdhgctPt02T",
   server: false
 

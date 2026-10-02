@@ -32,7 +32,7 @@ mise exec -- mix setup
 mise exec -- mix phx.server
 ```
 
-Open http://localhost:4000. See [development](docs/development.md) for database
+Open http://localhost:5000. See [development](docs/development.md) for database
 setup and checks, or [deployment](docs/deployment.md) to run your own instance.
 
 ## License

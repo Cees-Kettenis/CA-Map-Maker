@@ -68,7 +68,7 @@ config :ca_tools, Oban,
   ]
 
 config :ca_tools, CAToolsWeb.Endpoint,
-  http: [port: String.to_integer(System.get_env("PORT", "4000"))]
+  http: [port: String.to_integer(System.get_env("PORT", "5000"))]
 
 if config_env() == :prod do
   config :ca_tools, CATools.Mailer,

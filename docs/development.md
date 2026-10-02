@@ -10,7 +10,7 @@ mise exec -- mix setup
 mise exec -- mix phx.server
 ```
 
-Open http://localhost:4000. If another server uses that port, start with `PORT=4005 mise exec -- mix phx.server` instead. Restart an already running server after pulling these changes so migrations, runtime configuration and dependencies take effect.
+Open http://localhost:5000. If another server uses that port, start with `PORT=5005 mise exec -- mix phx.server` instead. Restart an already running server after pulling these changes so migrations, runtime configuration and dependencies take effect.
 
 For existing installations, run `mise exec -- mix ecto.migrate` before restarting. Maintenance attaches any old pending sources to import batches automatically.
 
