@@ -7,7 +7,7 @@ defmodule CATools.MixProject do
     [
       app: :ca_tools,
       version: "0.1.0",
-      elixir: "~> 1.19",
+      elixir: "~> 1.20",
       elixirc_paths: elixirc_paths(Mix.env()),
       start_permanent: Mix.env() == :prod,
       aliases: aliases(),
@@ -49,14 +49,18 @@ defmodule CATools.MixProject do
     [
       {:bcrypt_elixir, "~> 3.0"},
       {:phoenix, "~> 1.8.7"},
-      {:phoenix_ecto, "~> 4.5"},
+      # Upstream Elixir 1.20 warning fixes, pending the next Hex releases.
+      {:phoenix_ecto,
+       github: "phoenixframework/phoenix_ecto", ref: "d0b02063159762791982c0d44beff411b61cc5f7"},
       {:ecto_sql, "~> 3.13"},
       {:postgrex, ">= 0.0.0"},
       {:phoenix_html, "~> 4.1"},
       {:phoenix_live_reload, "~> 1.2", only: :dev},
-      {:phoenix_live_view, "~> 1.1.0"},
+      {:phoenix_live_view, "~> 1.2.12"},
       {:lazy_html, ">= 0.1.0", only: :test},
-      {:phoenix_live_dashboard, "~> 0.8.3"},
+      {:phoenix_live_dashboard,
+       github: "phoenixframework/phoenix_live_dashboard",
+       ref: "83a0bd137ed3e4c66b8037b140a2744803a48e13"},
       {:esbuild, "~> 0.10", runtime: Mix.env() == :dev},
       {:tailwind, "~> 0.3", runtime: Mix.env() == :dev},
       {:heroicons,
@@ -73,9 +77,10 @@ defmodule CATools.MixProject do
       {:hammer, "~> 7.1"},
       {:telemetry_metrics, "~> 1.0"},
       {:telemetry_poller, "~> 1.0"},
-      {:gettext, "~> 1.0"},
+      {:gettext,
+       github: "elixir-gettext/gettext", ref: "3163e3cbf6c015d9e37efa08adf42dc3e907f58b"},
       {:jason, "~> 1.2"},
-      {:dns_cluster, "~> 0.2.0"},
+      {:dns_cluster, "~> 0.3.1"},
       {:bandit, "~> 1.5"},
       {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false}
     ]
