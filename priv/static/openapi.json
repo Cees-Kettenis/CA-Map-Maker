@@ -439,6 +439,46 @@
           }
         }
       }
+    },
+    "/community/maps/{id}/export.kml": {
+      "get": {
+        "operationId": "communityMapKml",
+        "summary": "Export an invitation-only community map",
+        "description": "Requires a confirmed, signed-in owner or explicitly invited email. Omits Campfire source links.",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "KML map",
+            "content": {
+              "application/vnd.google-earth.kml+xml": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "302": {
+            "description": "Sign in required"
+          },
+          "404": {
+            "description": "No invitation or map not found"
+          }
+        }
+      }
     }
   },
   "components": {

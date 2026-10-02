@@ -150,6 +150,20 @@ defmodule CATools.Maps do
       map ->
         changeset = UserMap.changeset(map, attrs)
 
+        community? =
+          Repo.exists?(from c in CATools.Communities.Community, where: c.map_id == ^map.id)
+
+        changeset =
+          if community? and Changeset.get_field(changeset, :visibility) == :public do
+            Changeset.add_error(
+              changeset,
+              :visibility,
+              "Community maps use invitation-only sharing."
+            )
+          else
+            changeset
+          end
+
         slug =
           case {Changeset.get_field(changeset, :visibility), map.public_slug} do
             {:public, nil} -> maybe_generate_public_slug(:public)

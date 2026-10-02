@@ -31,8 +31,8 @@ defmodule CATools.Campfire.LinkResolver do
   @doc """
   Normalizes a single Campfire source URL and validates its host and scheme.
   """
-  @spec normalize_source_url(term()) :: {:ok, String.t()} | {:error, String.t()}
-  def normalize_source_url(url) do
+  @spec normalize_source_url(term(), keyword()) :: {:ok, String.t()} | {:error, String.t()}
+  def normalize_source_url(url, opts \\ []) do
     case url do
       value when is_binary(value) ->
         case URI.parse(value) do
@@ -48,7 +48,7 @@ defmodule CATools.Campfire.LinkResolver do
               uri.port not in [nil, default_port(normalized_scheme)] ->
                 {:error, "must not include a custom port."}
 
-              normalized_host not in @allowed_hosts ->
+              normalized_host not in (@allowed_hosts ++ Keyword.get(opts, :additional_hosts, [])) ->
                 {:error,
                  "unsupported host #{host}. Only cmpf.re, campfire.nianticlabs.com and niantic-social.nianticlabs.com are allowed."}
 
@@ -199,13 +199,26 @@ defmodule CATools.Campfire.LinkResolver do
     end
   end
 
+  @doc "Resolves an allowed short link without interpreting its resource type."
+  @spec resolve_url(term(), keyword()) :: {:ok, String.t()} | {:error, error_details()}
+  def resolve_url(url, opts \\ []) do
+    with {:ok, normalized} <- normalize_source_url(url, opts) do
+      follow_redirects(normalized, redirect_limit(opts), opts)
+    else
+      {:error, message} -> {:error, %{code: "invalid_link", message: message}}
+    end
+  end
+
   defp follow_redirects(url, remaining_redirects, opts) do
-    # Known discover/public URLs already contain their ID. Like campfire-tools,
-    # only short URLs need a network redirect request.
-    case {extract_resource_from_url(url), URI.parse(url).host} do
-      {{:ok, _resource}, _host} -> {:ok, url}
-      {_, "cmpf.re"} -> request_redirect(url, remaining_redirects, opts)
-      {{:error, error}, _host} -> {:error, error}
+    uri = URI.parse(url)
+
+    invitation? =
+      uri.host == "campfire.onelink.me" and String.contains?(uri.query || "", "deep_link_sub1=")
+
+    if uri.host in ["cmpf.re", "campfire.onelink.me"] and not invitation? do
+      request_redirect(url, remaining_redirects, opts)
+    else
+      {:ok, url}
     end
   end
 
@@ -245,7 +258,7 @@ defmodule CATools.Campfire.LinkResolver do
                   |> URI.merge(location)
                   |> URI.to_string()
 
-                with {:ok, normalized_next_url} <- normalize_source_url(next_url) do
+                with {:ok, normalized_next_url} <- normalize_source_url(next_url, opts) do
                   follow_redirects(normalized_next_url, remaining_redirects - 1, opts)
                 else
                   {:error, message} -> {:error, %{code: "invalid_redirect", message: message}}

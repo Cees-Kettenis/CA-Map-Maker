@@ -6,12 +6,34 @@ defmodule CAToolsWeb.MapLive.Public do
   @impl true
   @doc false
   @spec mount(map(), map(), Phoenix.LiveView.Socket.t()) :: {:ok, Phoenix.LiveView.Socket.t()}
-  def mount(%{"slug" => slug}, _session, socket) do
+  def mount(params, _session, socket) do
     if connected?(socket), do: Process.send_after(self(), :refresh, 3_000)
 
-    case Maps.get_public_map(slug) do
-      nil -> raise CAToolsWeb.NotFoundError
-      map -> {:ok, assign(socket, map: map, points: Maps.point_data(map), page_title: map.name)}
+    shared? = Map.has_key?(params, "id")
+
+    map =
+      if shared?,
+        do: CATools.Communities.shared_map(socket.assigns.current_scope, params["id"]),
+        else: Maps.get_public_map(params["slug"])
+
+    case map do
+      nil ->
+        raise CAToolsWeb.NotFoundError
+
+      map ->
+        export_url =
+          if shared?,
+            do: ~p"/community/maps/#{map.id}/export.kml",
+            else: ~p"/maps/#{map.public_slug}/export.kml"
+
+        {:ok,
+         assign(socket,
+           map: map,
+           points: Maps.point_data(map),
+           page_title: map.name,
+           shared?: shared?,
+           export_url: export_url
+         )}
     end
   end
 
@@ -20,7 +42,12 @@ defmodule CAToolsWeb.MapLive.Public do
   @spec handle_info(:refresh, Phoenix.LiveView.Socket.t()) ::
           {:noreply, Phoenix.LiveView.Socket.t()}
   def handle_info(:refresh, socket) do
-    case Maps.get_public_map(socket.assigns.map.public_slug) do
+    map =
+      if socket.assigns.shared?,
+        do: CATools.Communities.shared_map(socket.assigns.current_scope, socket.assigns.map.id),
+        else: Maps.get_public_map(socket.assigns.map.public_slug)
+
+    case map do
       nil ->
         {:noreply, push_navigate(socket, to: ~p"/")}
 
@@ -44,7 +71,7 @@ defmodule CAToolsWeb.MapLive.Public do
             {@map.description}
           </p>
         </div>
-        <.link href={~p"/maps/#{@map.public_slug}/export.kml"} class="atlas-button"><.icon
+        <.link href={@export_url} download="campfire-map.kml" class="atlas-button"><.icon
           name="hero-arrow-down-tray"
           class="size-4"
         /> Export KML</.link>

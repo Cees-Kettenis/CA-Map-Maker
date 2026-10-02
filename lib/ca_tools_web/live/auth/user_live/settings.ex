@@ -73,6 +73,12 @@ defmodule CAToolsWeb.Auth.UserLive.Settings do
 
         <section class="space-y-4">
           <h2 class="text-lg font-semibold">Campfire token</h2>
+          <p class="text-sm opacity-70">
+            Set your group link and private invitations in <.link
+              navigate={~p"/dashboard/community"}
+              class="underline"
+            >My Community</.link>.
+          </p>
 
           <p class="text-sm text-base-content/70">
             <%= if @campfire_token_saved? do %>

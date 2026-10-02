@@ -78,9 +78,12 @@ defmodule CAToolsWeb.Router do
     pipe_through [:browser, :require_authenticated_user]
 
     get "/dashboard/maps/:id/export.kml", MapController, :owner_export
+    get "/community/maps/:id/export.kml", MapController, :community_export
 
     live_session :authenticated_maps,
       on_mount: [{CAToolsWeb.Auth.UserAuth, :require_authenticated}] do
+      live "/dashboard/community", CommunityLive.Index, :index
+      live "/community/maps/:id", MapLive.Public, :community
       live "/dashboard/maps", MapLive.Index, :index
       live "/dashboard/maps/:id", MapLive.Show, :show
     end

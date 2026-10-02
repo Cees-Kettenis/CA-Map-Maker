@@ -45,4 +45,19 @@ defmodule CAToolsWeb.MapController do
         )
     end
   end
+
+  @doc "Exports an invitation-only community map for an authorized account. OpenAPI: communityMapKml."
+  @spec community_export(Plug.Conn.t(), map()) :: Plug.Conn.t()
+  def community_export(conn, %{"id" => id}) do
+    case CATools.Communities.shared_map(conn.assigns.current_scope, id) do
+      nil ->
+        send_resp(conn, :not_found, "Map not found")
+
+      map ->
+        send_download(conn, {:binary, KML.generate(map)},
+          filename: "community-map.kml",
+          content_type: "application/vnd.google-earth.kml+xml"
+        )
+    end
+  end
 end

@@ -57,6 +57,19 @@ defmodule CATools.Campfire.MaintenanceJob do
       end)
     end)
 
+    now = DateTime.utc_now(:second)
+
+    Repo.all(
+      from c in CATools.Communities.Community,
+        where:
+          c.enabled and not is_nil(c.map_id) and
+            (is_nil(c.next_check_at) or c.next_check_at <= ^now),
+        select: c.id
+    )
+    |> Enum.each(fn id ->
+      Oban.insert!(CATools.Campfire.CommunitySyncJob.new(%{"community_id" => id}))
+    end)
+
     :ok
   end
 end

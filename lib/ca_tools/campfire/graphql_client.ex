@@ -64,6 +64,77 @@ defmodule CATools.Campfire.GraphQLClient do
     @resource_query
   end
 
+  @doc "Fetches one page of the club's active meetup feed, matching campfire-tools."
+  @spec fetch_club_page(User.t(), String.t(), String.t() | nil, keyword()) ::
+          {:ok, map()} | {:error, error_details()}
+  def fetch_club_page(user, club_id, cursor \\ nil, opts \\ []) do
+    query = """
+    query ActiveEvents_Query($clubId: ID!, $first: Int!, $after: String) {
+      club(id: $clubId) {
+        id name
+        activeFeed(first: $first, after: $after) {
+          edges { node { ... on Event { id } } }
+          pageInfo { hasNextPage endCursor }
+        }
+      }
+    }
+    """
+
+    with {:ok, credentials} <- Accounts.get_user_campfire_credentials(user),
+         {:ok, token} <- extract_token(credentials),
+         {:ok, response} <-
+           request_graphql(
+             token,
+             %{
+               operationName: "ActiveEvents_Query",
+               query: query,
+               variables: %{clubId: club_id, first: 100, after: cursor}
+             },
+             opts
+           ) do
+      case response.body do
+        %{"errors" => [_ | _]} ->
+          normalize_response_body(response.body, %{campfire_id: club_id}, token)
+
+        %{
+          "data" => %{
+            "club" => %{
+              "id" => ^club_id,
+              "name" => name,
+              "activeFeed" => %{
+                "edges" => edges,
+                "pageInfo" => %{"hasNextPage" => more, "endCursor" => next}
+              }
+            }
+          }
+        }
+        when is_binary(name) and is_list(edges) and is_boolean(more) ->
+          ids =
+            Enum.flat_map(edges, fn
+              %{"node" => %{"id" => id}} when is_binary(id) and id != "" -> [id]
+              _ -> []
+            end)
+
+          if more and (not is_binary(next) or next == "" or next == cursor) do
+            {:error,
+             %{code: "invalid_response", message: "Campfire returned an invalid page cursor."}}
+          else
+            {:ok, %{name: name, event_ids: Enum.uniq(ids), next_cursor: if(more, do: next)}}
+          end
+
+        _ ->
+          {:error,
+           %{
+             code: "missing_group",
+             message: "Campfire did not return this group. Check access and the group link."
+           }}
+      end
+    else
+      {:error, %{} = details} -> {:error, details}
+      {:error, reason} when is_atom(reason) -> {:error, credentials_error(reason)}
+    end
+  end
+
   defp extract_token(credentials) do
     case credentials do
       %{"campfire" => %{"token" => token}} when is_binary(token) and token != "" ->
@@ -86,6 +157,10 @@ defmodule CATools.Campfire.GraphQLClient do
       "variables" => %{"id" => resolved_source.campfire_id}
     }
 
+    request_graphql(token, body, opts)
+  end
+
+  defp request_graphql(token, body, opts) do
     request =
       [
         method: :post,
