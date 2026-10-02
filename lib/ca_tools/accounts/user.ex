@@ -45,6 +45,21 @@ defmodule CATools.Accounts.User do
     |> validate_email(opts)
   end
 
+  @doc "Validates signup email and an optional bcrypt password."
+  @spec registration_changeset(t(), map(), keyword()) :: Ecto.Changeset.t()
+  def registration_changeset(user, attrs, opts \\ []) do
+    changeset =
+      email_changeset(user, attrs, opts) |> cast(attrs, [:password])
+
+    case get_field(changeset, :password) do
+      value when is_binary(value) and value != "" ->
+        changeset |> validate_confirmation(:password) |> validate_password(opts)
+
+      _ ->
+        changeset
+    end
+  end
+
   defp validate_email(changeset, opts) do
     changeset =
       changeset

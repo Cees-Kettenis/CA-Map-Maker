@@ -1,19 +1,7 @@
 <Layouts.app flash={@flash} current_scope={@current_scope}>
   <div class="mx-auto max-w-sm">
     <div class="text-center">
-      <.header>
-        Register for an account
-        <:subtitle>
-          Already registered?
-          <.link
-            navigate={~p"/auth/users/log-in"}
-            class="font-semibold text-brand hover:underline"
-          >
-            Log in
-          </.link>
-          to your account now.
-        </:subtitle>
-      </.header>
+      <.header>Create an account</.header>
     </div>
 
     <.form :let={f} for={@changeset} action={~p"/auth/users/register"}>
@@ -31,5 +19,6 @@
         Create an account
       </.button>
     </.form>
+    <.link navigate={~p"/auth/users/log-in"} class="text-sm underline mt-5 inline-block">Log in</.link>
   </div>
 </Layouts.app>

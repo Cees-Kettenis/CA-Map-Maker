@@ -8,7 +8,8 @@ defmodule CAToolsWeb.Endpoint do
     store: :cookie,
     key: "_ca_tools_key",
     signing_salt: "Y8sXyNTt",
-    same_site: "Lax"
+    same_site: "Lax",
+    secure: Application.compile_env(:ca_tools, :secure_cookies, false)
   ]
 
   socket "/live", Phoenix.LiveView.Socket,
@@ -46,6 +47,7 @@ defmodule CAToolsWeb.Endpoint do
   plug Plug.Parsers,
     parsers: [:urlencoded, :multipart, :json],
     pass: ["*/*"],
+    length: 2_000_000,
     json_decoder: Phoenix.json_library()
 
   plug Plug.MethodOverride

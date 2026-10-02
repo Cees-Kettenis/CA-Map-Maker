@@ -7,7 +7,7 @@ defmodule CAToolsWeb.Auth.UserRegistrationControllerTest do
     test "renders registration page", %{conn: conn} do
       conn = get(conn, ~p"/auth/users/register")
       response = html_response(conn, 200)
-      assert response =~ "Register"
+      assert response =~ "Create an account"
       assert response =~ ~p"/auth/users/log-in"
       assert response =~ ~p"/auth/users/register"
     end
@@ -43,7 +43,7 @@ defmodule CAToolsWeb.Auth.UserRegistrationControllerTest do
         })
 
       response = html_response(conn, 200)
-      assert response =~ "Register"
+      assert response =~ "Create an account"
       assert response =~ "must have the @ sign and no spaces"
     end
   end

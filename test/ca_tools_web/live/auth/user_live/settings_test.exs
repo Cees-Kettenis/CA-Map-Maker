@@ -14,7 +14,7 @@ defmodule CAToolsWeb.Auth.UserLive.SettingsTest do
 
       assert html =~ "Change Email"
       assert html =~ "Save Password"
-      assert html =~ "Campfire Credentials"
+      assert html =~ "Campfire token"
     end
 
     test "redirects if user is not logged in", %{conn: conn} do
@@ -228,7 +228,7 @@ defmodule CAToolsWeb.Auth.UserLive.SettingsTest do
         })
         |> render_submit(%{"intent" => "validate"})
 
-      assert validated_html =~ "Campfire token looks valid."
+      assert validated_html =~ "Token format is valid. Campfire access is checked during import."
 
       saved_html =
         lv

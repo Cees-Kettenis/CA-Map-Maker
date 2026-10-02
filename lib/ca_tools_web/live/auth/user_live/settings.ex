@@ -12,113 +12,109 @@ defmodule CAToolsWeb.Auth.UserLive.Settings do
   def render(assigns) do
     ~H"""
     <Layouts.app flash={@flash} current_scope={@current_scope}>
-      <div class="text-center">
-        <.header>
-          Account Settings
-          <:subtitle>Manage your account email address and password settings</:subtitle>
-        </.header>
-      </div>
+      <div class="max-w-2xl mx-auto atlas-card p-8">
+        <div class="text-center">
+          <.header>
+            Settings
+          </.header>
+        </div>
 
-      <.form for={@email_form} id="email_form" phx-submit="update_email" phx-change="validate_email">
-        <.input
-          field={@email_form[:email]}
-          type="email"
-          label="Email"
-          autocomplete="username"
-          spellcheck="false"
-          required
-        />
-        <.button variant="primary" phx-disable-with="Changing...">Change Email</.button>
-      </.form>
-
-      <div class="divider" />
-
-      <.form
-        for={@password_form}
-        id="password_form"
-        action={~p"/auth/users/update-password"}
-        method="post"
-        phx-change="validate_password"
-        phx-submit="update_password"
-        phx-trigger-action={@trigger_submit}
-      >
-        <input
-          name={@password_form[:email].name}
-          type="hidden"
-          id="hidden_user_email"
-          spellcheck="false"
-          value={@current_email}
-        />
-        <.input
-          field={@password_form[:password]}
-          type="password"
-          label="New password"
-          autocomplete="new-password"
-          spellcheck="false"
-          required
-        />
-        <.input
-          field={@password_form[:password_confirmation]}
-          type="password"
-          label="Confirm new password"
-          autocomplete="new-password"
-          spellcheck="false"
-        />
-        <.button variant="primary" phx-disable-with="Saving...">
-          Save Password
-        </.button>
-      </.form>
-
-      <div class="divider" />
-
-      <section class="space-y-4">
-        <.header>
-          Campfire Credentials
-          <:subtitle>
-            Store your Campfire bearer token securely. Raw tokens, bearer headers, and headers JSON are accepted.
-          </:subtitle>
-        </.header>
-
-        <p class="text-sm text-base-content/70">
-          <%= if @campfire_token_saved? do %>
-            Campfire token saved.
-          <% else %>
-            No Campfire token saved.
-          <% end %>
-        </p>
-
-        <.form
-          for={@campfire_credentials_form}
-          id="campfire_credentials_form"
-          phx-change="validate_campfire_credentials"
-          phx-submit="submit_campfire_credentials"
-        >
+        <.form for={@email_form} id="email_form" phx-submit="update_email" phx-change="validate_email">
           <.input
-            field={@campfire_credentials_form[:campfire_token_input]}
-            type="textarea"
-            label="Campfire token or Authorization header"
-            autocomplete="off"
+            field={@email_form[:email]}
+            type="email"
+            label="Email"
+            autocomplete="username"
             spellcheck="false"
+            required
           />
-          <div class="flex flex-col gap-2 sm:flex-row">
-            <.button variant="secondary" name="intent" value="validate">
-              Validate Token
-            </.button>
-            <.button variant="primary" name="intent" value="save" phx-disable-with="Saving...">
-              Save Token
-            </.button>
-          </div>
+          <.button variant="primary" phx-disable-with="Changing...">Change Email</.button>
         </.form>
 
-        <.button
-          :if={@campfire_token_saved?}
-          variant="danger"
-          phx-click="delete_campfire_credentials"
-          data-confirm="Delete the saved Campfire token?"
+        <div class="divider" />
+
+        <.form
+          for={@password_form}
+          id="password_form"
+          action={~p"/auth/users/update-password"}
+          method="post"
+          phx-change="validate_password"
+          phx-submit="update_password"
+          phx-trigger-action={@trigger_submit}
         >
-          Delete Saved Token
-        </.button>
-      </section>
+          <input
+            name={@password_form[:email].name}
+            type="hidden"
+            id="hidden_user_email"
+            spellcheck="false"
+            value={@current_email}
+          />
+          <.input
+            field={@password_form[:password]}
+            type="password"
+            label="New password"
+            autocomplete="new-password"
+            spellcheck="false"
+            required
+          />
+          <.input
+            field={@password_form[:password_confirmation]}
+            type="password"
+            label="Confirm new password"
+            autocomplete="new-password"
+            spellcheck="false"
+          />
+          <.button variant="primary" phx-disable-with="Saving...">
+            Save Password
+          </.button>
+        </.form>
+
+        <div class="divider" />
+
+        <section class="space-y-4">
+          <h2 class="text-lg font-semibold">Campfire token</h2>
+
+          <p class="text-sm text-base-content/70">
+            <%= if @campfire_token_saved? do %>
+              Campfire token saved.
+            <% else %>
+              No Campfire token saved.
+            <% end %>
+          </p>
+
+          <.form
+            for={@campfire_credentials_form}
+            id="campfire_credentials_form"
+            phx-change="validate_campfire_credentials"
+            phx-submit="submit_campfire_credentials"
+          >
+            <.input
+              field={@campfire_credentials_form[:campfire_token_input]}
+              type="textarea"
+              label="Campfire token or Authorization header"
+              autocomplete="off"
+              spellcheck="false"
+            />
+            <div class="flex flex-col gap-2 sm:flex-row">
+              <.button variant="secondary" name="intent" value="validate">
+                Check token format
+              </.button>
+              <.button variant="primary" name="intent" value="save" phx-disable-with="Saving...">
+                Save Token
+              </.button>
+            </div>
+          </.form>
+
+          <.button
+            :if={@campfire_token_saved?}
+            variant="danger"
+            phx-click="delete_campfire_credentials"
+            data-confirm="Delete the saved Campfire token?"
+          >
+            Delete Saved Token
+          </.button>
+        </section>
+      </div>
     </Layouts.app>
     """
   end
@@ -127,6 +123,8 @@ defmodule CAToolsWeb.Auth.UserLive.Settings do
   @doc false
   @spec mount(map(), map(), Phoenix.LiveView.Socket.t()) :: {:ok, Phoenix.LiveView.Socket.t()}
   def mount(params, _session, socket) do
+    socket = assign(socket, page_title: "Settings")
+
     case params do
       %{"token" => token} ->
         mounted_socket =
@@ -243,7 +241,10 @@ defmodule CAToolsWeb.Auth.UserLive.Settings do
               true ->
                 {:noreply,
                  socket
-                 |> put_flash(:info, "Campfire token looks valid.")
+                 |> put_flash(
+                   :info,
+                   "Token format is valid. Campfire access is checked during import."
+                 )
                  |> assign(
                    :campfire_credentials_form,
                    to_form(changeset, as: "campfire_credentials")

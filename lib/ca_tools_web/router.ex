@@ -62,6 +62,8 @@ defmodule CAToolsWeb.Router do
   scope "/auth", CAToolsWeb.Auth do
     pipe_through [:browser]
 
+    get "/users/confirm/:token", UserRecoveryController, :confirm
+    post "/users/reset-password/:token", UserRecoveryController, :reset
     post "/users/log-in", UserSessionController, :create
     delete "/users/log-out", UserSessionController, :delete
   end
@@ -94,6 +96,8 @@ defmodule CAToolsWeb.Router do
 
     live_session :current_user,
       on_mount: [{CAToolsWeb.Auth.UserAuth, :mount_current_scope}] do
+      live "/users/reset-password", UserLive.Recovery, :request
+      live "/users/reset-password/:token", UserLive.Recovery, :reset
       live "/users/register", UserLive.Registration, :new
       live "/users/log-in", UserLive.Login, :new
       live "/users/log-in/:token", UserLive.Confirmation, :new

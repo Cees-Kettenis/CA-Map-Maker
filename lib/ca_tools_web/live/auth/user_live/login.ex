@@ -10,31 +10,18 @@ defmodule CAToolsWeb.Auth.UserLive.Login do
   def render(assigns) do
     ~H"""
     <Layouts.app flash={@flash} current_scope={@current_scope}>
-      <div class="mx-auto max-w-sm space-y-4">
+      <div class="atlas-auth space-y-5">
         <div class="text-center">
-          <.header>
-            <p>Log in</p>
-            <:subtitle>
-              <%= if @current_scope do %>
-                You need to reauthenticate to perform sensitive actions on your account.
-              <% else %>
-                Don't have an account? <.link
-                  navigate={~p"/auth/users/register"}
-                  class="font-semibold text-brand hover:underline"
-                  phx-no-format
-                >Sign up</.link> for an account now.
-              <% end %>
-            </:subtitle>
-          </.header>
+          <.header>Log in</.header>
+          <p :if={@current_scope} class="text-sm opacity-65">
+            Log in again to change your account settings.
+          </p>
         </div>
 
         <div :if={local_mail_adapter?()} class="alert alert-info">
           <.icon name="hero-information-circle" class="size-6 shrink-0" />
           <div>
-            <p>You are running the local mail adapter.</p>
-            <p>
-              To see sent emails, visit <.link href="/dev/mailbox" class="underline">the mailbox page</.link>.
-            </p>
+            <.link href="/dev/mailbox" class="underline">Open development mailbox</.link>
           </div>
         </div>
 
@@ -61,6 +48,7 @@ defmodule CAToolsWeb.Auth.UserLive.Login do
         </.form>
 
         <div class="divider">or</div>
+        <.link navigate={~p"/auth/users/reset-password"} class="text-xs underline">Forgot your password?</.link>
 
         <.form
           :let={f}
@@ -93,6 +81,9 @@ defmodule CAToolsWeb.Auth.UserLive.Login do
             Log in only this time
           </.button>
         </.form>
+        <.link :if={!@current_scope} navigate={~p"/auth/users/register"} class="text-sm underline">
+          Create an account
+        </.link>
       </div>
     </Layouts.app>
     """
@@ -110,6 +101,7 @@ defmodule CAToolsWeb.Auth.UserLive.Login do
 
     {:ok,
      assign(socket,
+       page_title: "Log in",
        client_ip: RequestSecurity.live_client_ip(socket),
        form: form,
        trigger_submit: false

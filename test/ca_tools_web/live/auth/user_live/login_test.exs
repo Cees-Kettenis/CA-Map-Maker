@@ -9,7 +9,7 @@ defmodule CAToolsWeb.Auth.UserLive.LoginTest do
       {:ok, _lv, html} = live(conn, ~p"/auth/users/log-in")
 
       assert html =~ "Log in"
-      assert html =~ "Register"
+      assert html =~ "Create an account"
       assert html =~ "Log in with email"
     end
   end
@@ -101,16 +101,16 @@ defmodule CAToolsWeb.Auth.UserLive.LoginTest do
   end
 
   describe "login navigation" do
-    test "redirects to registration page when the Register button is clicked", %{conn: conn} do
+    test "redirects to registration page when the create account link is clicked", %{conn: conn} do
       {:ok, lv, _html} = live(conn, ~p"/auth/users/log-in")
 
       {:ok, _login_live, login_html} =
         lv
-        |> element("main a", "Sign up")
+        |> element("main a", "Create an account")
         |> render_click()
         |> follow_redirect(conn, ~p"/auth/users/register")
 
-      assert login_html =~ "Register"
+      assert login_html =~ "Create an account"
     end
   end
 
@@ -123,8 +123,8 @@ defmodule CAToolsWeb.Auth.UserLive.LoginTest do
     test "shows login page with email filled in", %{conn: conn, user: user} do
       {:ok, _lv, html} = live(conn, ~p"/auth/users/log-in")
 
-      assert html =~ "You need to reauthenticate"
-      refute html =~ "Register"
+      assert html =~ "Log in again"
+      refute html =~ "Create an account"
       assert html =~ "Log in with email"
 
       assert html =~

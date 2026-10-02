@@ -165,6 +165,24 @@ defmodule CATools.Accounts.UserToken do
     end
   end
 
+  @doc "Validates a hashed confirmation or reset token within its allowed lifetime."
+  @spec verify_email_token_query(String.t(), String.t(), pos_integer()) ::
+          {:ok, Ecto.Query.t()} | :error
+  def verify_email_token_query(token, context, seconds) do
+    with {:ok, decoded} <- Base.url_decode64(token, padding: false) do
+      hash = :crypto.hash(@hash_algorithm, decoded)
+
+      {:ok,
+       from(t in by_token_and_context_query(hash, context),
+         join: u in assoc(t, :user),
+         where: t.inserted_at > ago(^seconds, "second") and t.sent_to == u.email,
+         select: {u, t}
+       )}
+    else
+      _ -> :error
+    end
+  end
+
   defp by_token_and_context_query(token, context) do
     from UserToken, where: [token: ^token, context: ^context]
   end

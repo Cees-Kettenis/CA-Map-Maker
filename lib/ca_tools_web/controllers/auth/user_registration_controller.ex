@@ -35,9 +35,10 @@ defmodule CAToolsWeb.Auth.UserRegistrationController do
         case Accounts.register_user(user_params) do
           {:ok, user} ->
             {:ok, _} =
-              Accounts.deliver_login_instructions(
+              Accounts.deliver_signup_instructions(
                 user,
-                &url(~p"/auth/users/log-in/#{&1}")
+                &url(~p"/auth/users/log-in/#{&1}"),
+                &url(~p"/auth/users/confirm/#{&1}")
               )
 
             conn

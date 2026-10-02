@@ -101,7 +101,7 @@ defmodule CATools.Accounts do
   @spec register_user(map()) :: {:ok, User.t()} | {:error, Changeset.t()}
   def register_user(attrs) do
     %User{}
-    |> User.email_changeset(attrs)
+    |> User.registration_changeset(attrs)
     |> Repo.insert()
   end
 
@@ -271,6 +271,81 @@ defmodule CATools.Accounts do
     user
     |> User.password_changeset(attrs)
     |> update_user_and_delete_all_tokens()
+  end
+
+  @doc "Builds a signup changeset without storing a user."
+  @spec change_user_registration(map(), keyword()) :: Changeset.t()
+  def change_user_registration(attrs \\ %{}, opts \\ []) do
+    User.registration_changeset(%User{}, attrs, opts)
+  end
+
+  @doc "Sends the appropriate signup confirmation for password or email-only registration."
+  @spec deliver_signup_instructions(User.t(), (String.t() -> String.t()), (String.t() ->
+                                                                             String.t())) ::
+          {:ok, Swoosh.Email.t()} | {:error, term()}
+  def deliver_signup_instructions(user, login_url, confirm_url) do
+    case user.hashed_password do
+      nil ->
+        deliver_login_instructions(user, login_url)
+
+      _ ->
+        {token, record} = UserToken.build_email_token(user, "confirm")
+        Repo.insert!(record)
+        UserNotifier.deliver_account_confirmation(user, confirm_url.(token))
+    end
+  end
+
+  @doc "Confirms a password signup using a single-use email token."
+  @spec confirm_user(String.t()) :: {:ok, User.t()} | {:error, term()}
+  def confirm_user(token) do
+    Repo.transact(fn ->
+      with {:ok, query} <- UserToken.verify_email_token_query(token, "confirm", 86_400),
+           {user, _record} <- Repo.one(from q in query, lock: "FOR UPDATE"),
+           {:ok, user} <- Repo.update(User.confirm_changeset(user)) do
+        Repo.delete_all(
+          from t in UserToken, where: t.user_id == ^user.id and t.context == "confirm"
+        )
+
+        {:ok, user}
+      else
+        _ -> {:error, :invalid_token}
+      end
+    end)
+  end
+
+  @doc "Sends a one-hour password recovery link to a confirmed account."
+  @spec deliver_password_reset_instructions(User.t(), (String.t() -> String.t())) ::
+          {:ok, Swoosh.Email.t()} | {:error, term()}
+  def deliver_password_reset_instructions(user, url_fun) do
+    {token, record} = UserToken.build_email_token(user, "reset_password")
+    Repo.insert!(record)
+    UserNotifier.deliver_password_reset(user, url_fun.(token))
+  end
+
+  @doc "Returns the user for a valid recovery token, or nil."
+  @spec get_user_by_password_reset_token(String.t()) :: User.t() | nil
+  def get_user_by_password_reset_token(token) do
+    with {:ok, query} <- UserToken.verify_email_token_query(token, "reset_password", 3600),
+         {%User{confirmed_at: confirmed} = user, _record} when not is_nil(confirmed) <-
+           Repo.one(query) do
+      user
+    else
+      _ -> nil
+    end
+  end
+
+  @doc "Resets a password and revokes all existing login, recovery and session tokens."
+  @spec reset_user_password(String.t(), map()) :: token_disconnect_result() | {:error, term()}
+  def reset_user_password(token, attrs) do
+    Repo.transact(fn ->
+      with {:ok, query} <- UserToken.verify_email_token_query(token, "reset_password", 3600),
+           {%User{confirmed_at: confirmed} = user, _record} when not is_nil(confirmed) <-
+             Repo.one(from q in query, lock: "FOR UPDATE") do
+        update_user_password(user, attrs)
+      else
+        _ -> {:error, :invalid_token}
+      end
+    end)
   end
 
   ## Session

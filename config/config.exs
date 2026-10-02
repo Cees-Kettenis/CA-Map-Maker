@@ -105,6 +105,7 @@ config :phoenix, :filter_parameters, [
   "credentials",
   "encrypted_credentials",
   "password",
+  "password_confirmation",
   "token"
 ]
 
@@ -115,6 +116,8 @@ config :ca_tools, CATools.RateLimiter,
   limits: %{
     map_create_user: %{scale_ms: :timer.minutes(10), limit: 20},
     map_create_ip: %{scale_ms: :timer.minutes(10), limit: 100},
+    password_reset_ip: %{scale_ms: :timer.minutes(15), limit: 30},
+    password_reset_email: %{scale_ms: :timer.minutes(15), limit: 3},
     registration_ip: %{scale_ms: :timer.minutes(10), limit: 100},
     registration_email: %{scale_ms: :timer.hours(1), limit: 3},
     login_password_ip: %{scale_ms: :timer.minutes(15), limit: 200},

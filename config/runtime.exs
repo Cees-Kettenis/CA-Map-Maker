@@ -22,7 +22,11 @@ end
 
 credentials_master_key_base64 =
   System.get_env("CREDENTIALS_MASTER_KEY_BASE64") ||
-    Base.encode64(:binary.copy(<<0>>, 32))
+    if config_env() == :prod do
+      raise "CREDENTIALS_MASTER_KEY_BASE64 is required in production"
+    else
+      Base.encode64(:binary.copy(<<0>>, 32))
+    end
 
 oban_import_queue_limit =
   String.to_integer(System.get_env("OBAN_IMPORT_QUEUE_LIMIT", "10"))
@@ -32,6 +36,10 @@ oban_retry_queue_limit =
 
 oban_maintenance_queue_limit =
   String.to_integer(System.get_env("OBAN_MAINTENANCE_QUEUE_LIMIT", "2"))
+
+if not match?({:ok, <<_::256>>}, Base.decode64(credentials_master_key_base64)) do
+  raise "CREDENTIALS_MASTER_KEY_BASE64 must be a base64-encoded 32-byte key"
+end
 
 config :ca_tools, CATools.Campfire.GraphQLClient,
   endpoint:
@@ -59,6 +67,14 @@ config :ca_tools, CAToolsWeb.Endpoint,
   http: [port: String.to_integer(System.get_env("PORT", "4000"))]
 
 if config_env() == :prod do
+  config :ca_tools, CATools.Mailer,
+    adapter: Swoosh.Adapters.Resend,
+    api_key: System.get_env("RESEND_API_KEY") || raise("RESEND_API_KEY is required in production")
+
+  config :ca_tools,
+         :mail_from,
+         System.get_env("MAIL_FROM") || raise("MAIL_FROM is required in production")
+
   database_url =
     System.get_env("DATABASE_URL") ||
       raise """
