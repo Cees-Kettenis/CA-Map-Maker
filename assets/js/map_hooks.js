@@ -1,10 +1,11 @@
+import {formatMeetupTime} from "./local_time.js"
+
 function meetupImage(value, alt, className) {
   if (!value) return null
   try {
-    const url = new URL(value)
-    if (url.protocol !== 'https:' || url.username || url.password || url.port) return null
+    if (!/^\/media\/meetups\/[0-9a-f]{64}$/.test(value)) return null
     const image = document.createElement('img')
-    image.src = url.href
+    image.src = value
     image.alt = alt
     image.loading = 'lazy'
     image.referrerPolicy = 'no-referrer'
@@ -65,7 +66,7 @@ export const AtlasMap = {
           section.appendChild(host)
         }
         for (const value of [meetup.group_name, meetup.description, meetup.address,
-          meetup.starts_at && new Date(meetup.starts_at).toLocaleString()]) {
+          formatMeetupTime(meetup.starts_at, meetup.ends_at)]) {
           if (!value) continue
           const line = document.createElement('p')
           line.textContent = value
@@ -112,5 +113,31 @@ export const CopyLink = {
         if (field) { field.focus(); field.select() }
       }
     })
+  },
+}
+
+export const MeetupDate = {
+  mounted() {
+    const date = this.el.querySelector('input[type="date"]')
+    const offset = this.el.querySelector('#meetup-date-offset')
+    const sync = () => {
+      const day = date.value ? new Date(`${date.value}T00:00:00`) : new Date()
+      offset.value = String(-day.getTimezoneOffset())
+    }
+    date.addEventListener('change', sync)
+    this.el.addEventListener('submit', sync, true)
+    sync()
+  },
+}
+
+export const ConfirmDialog = {
+  mounted() {
+    this.targetId = this.el.dataset.targetId
+    this.el.addEventListener('atlas:open', () => { if (!this.el.open) this.el.showModal() })
+    this.el.addEventListener('click', event => { if (event.target === this.el) this.el.close() })
+  },
+  updated() {
+    if (this.targetId !== this.el.dataset.targetId && this.el.open) this.el.close()
+    this.targetId = this.el.dataset.targetId
   },
 }

@@ -43,7 +43,7 @@ defmodule CAToolsWeb.Layouts do
       </a>
       <nav aria-label="Main navigation" class="flex items-center gap-2 sm:gap-5 text-sm">
         <%= if @current_scope do %>
-          <.link navigate={~p"/dashboard/community"} class="nav-link">My Community</.link>
+          <.link navigate={~p"/dashboard/community"} class="nav-link">My Communities</.link>
           <.link navigate={~p"/dashboard/maps"} class="nav-link">My Maps</.link>
           <.link navigate={~p"/auth/users/settings"} class="nav-link">Settings</.link>
           <.link href={~p"/auth/users/log-out"} method="delete" class="nav-link">Log out</.link>

@@ -40,12 +40,12 @@ test('meetups at the same coordinates share a marker with the next meetup first'
 
 test('popup cover photos load safely and missing photos do not hide meetup details', () => {
   const markers = renderMarkers([
-    meetup('<img onerror=alert(1)>', 101.68, {cover_photo_url: 'https://cdn.example.com/cover.jpg'}),
+    meetup('<img onerror=alert(1)>', 101.68, {cover_photo_url: `/media/meetups/${'a'.repeat(64)}`}),
     meetup('No photo', 101.70, {cover_photo_url: 'javascript:alert(1)'}),
   ])
   const image = markers[0].popup.children[0].children[0]
   assert.equal(image.tag, 'img')
-  assert.equal(image.src, 'https://cdn.example.com/cover.jpg')
+  assert.equal(image.src, `/media/meetups/${'a'.repeat(64)}`)
   assert.equal(image.referrerPolicy, 'no-referrer')
   assert.equal(markers[0].popup.children[0].children[1].textContent, '<img onerror=alert(1)>')
   image.listeners.error()
@@ -56,14 +56,19 @@ test('popup cover photos load safely and missing photos do not hide meetup detai
 
 test('popup displays the host name and optional safe avatar', () => {
   const markers = renderMarkers([
-    meetup('Hosted meetup', 101.68, {host_name: '<b>Trainer</b>', host_avatar_url: 'https://cdn.example.com/avatar.jpg'}),
+    meetup('Hosted meetup', 101.68, {host_name: '<b>Trainer</b>', host_avatar_url: `/media/meetups/${'b'.repeat(64)}`}),
     meetup('Name only', 101.70, {host_name: 'Trainer', host_avatar_url: 'javascript:alert(1)'}),
   ])
   const host = markers[0].popup.children[0].children[1]
   assert.equal(host.className, 'atlas-meetup-host')
-  assert.equal(host.children[0].src, 'https://cdn.example.com/avatar.jpg')
+  assert.equal(host.children[0].src, `/media/meetups/${'b'.repeat(64)}`)
   assert.equal(host.children[1].textContent, 'Hosted by <b>Trainer</b>')
   const nameOnly = markers[1].popup.children[0].children[1]
   assert.equal(nameOnly.children.length, 1)
   assert.equal(nameOnly.children[0].textContent, 'Hosted by Trainer')
+})
+
+test('remote cover URLs are never requested by the browser', () => {
+  const markers = renderMarkers([meetup('Remote image', 101.68, {cover_photo_url: 'https://cdn.example.com/remote.jpg'})])
+  assert.equal(markers[0].popup.children[0].children[0].tag, 'h3')
 })

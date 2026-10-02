@@ -7,7 +7,7 @@ defmodule CAToolsWeb.CommunityLive.IndexTest do
   test "owner connects a group, invites an email, and revokes access", %{conn: conn} do
     user = user_fixture()
     {:ok, view, html} = conn |> log_in_user(user) |> live(~p"/dashboard/community")
-    assert html =~ "My Community"
+    assert html =~ "My Communities"
     assert has_element?(view, "#community-form")
 
     view

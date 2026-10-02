@@ -117,7 +117,7 @@ body { background: radial-gradient(ellipse at 10% 0%, #818cf809, transparent 55%
 .atlas-footer { max-width: 1360px; margin: auto; border-top: 1px solid var(--atlas-line); padding: 24px 40px; display: flex; justify-content: space-between; gap: 12px; font-size: 11px; color: var(--atlas-muted); }
 .atlas-display { font-weight: 650; letter-spacing: -.025em; line-height: 1.2; }
 .atlas-card { border: 1px solid var(--atlas-line); border-radius: 20px; background: var(--atlas-card); overflow: hidden; box-shadow: var(--atlas-shadow); }
-.atlas-button { display: inline-flex; align-items: center; gap: 8px; border-radius: 10px; padding: 10px 16px; font-size: 13px; font-weight: 600; border: 1px solid var(--atlas-line); background: var(--atlas-card); cursor: pointer; }
+.atlas-button { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; box-sizing: border-box; border-radius: 10px; padding: 10px 16px; font-size: 13px; font-weight: 600; border: 1px solid var(--atlas-line); background: var(--atlas-card); cursor: pointer; }
 .atlas-button { transition: background .18s, border-color .18s, box-shadow .18s; }
 .atlas-button:hover { background: var(--atlas-success-bg); border-color: color-mix(in srgb, var(--atlas-accent) 35%, var(--atlas-line)); }
 .atlas-button:disabled { opacity: .5; cursor: wait; }
@@ -274,3 +274,15 @@ body { background: radial-gradient(ellipse at 10% 0%, #818cf809, transparent 55%
 .atlas-meetup-host { display: flex; align-items: center; gap: 9px; margin: 10px 0; font-size: 12px; color: var(--atlas-muted); }
 .atlas-meetup-host img { width: 32px; height: 32px; object-fit: cover; border-radius: 50%; flex-shrink: 0; }
 .atlas-meetup-host img[hidden] { display: none; }
+
+.atlas-button-primary { color: #fff; background: linear-gradient(120deg, #6570eb, #397fec); border-color: transparent; box-shadow: 0 4px 12px #6366f124; }
+.atlas-button-primary:hover { background: linear-gradient(120deg, #5260da, #2c6edb); }
+
+.atlas-community-cover { background: radial-gradient(ellipse at center, var(--atlas-success-bg), var(--atlas-card)); }
+.atlas-dialog { margin: auto; width: min(440px, calc(100vw - 32px)); padding: 28px; border-radius: 24px; border: 1px solid var(--atlas-line); background: var(--atlas-card); color: var(--atlas-text); box-shadow: 0 24px 80px #0005; }
+.atlas-dialog::backdrop { background: #11182780; backdrop-filter: blur(6px); }
+.atlas-delete-symbol { display: inline-flex; padding: 12px; border-radius: 14px; color: #dc5555; background: #ef444415; }
+.atlas-button-danger { color: #dc5555; border-color: #ef444440; background: #ef444410; }
+.atlas-button-danger:hover { background: #ef444420; border-color: #ef444470; }
+
+.atlas-community-tab { height: 54px; max-width: 100%; }

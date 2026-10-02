@@ -31,6 +31,42 @@ defmodule CAToolsWeb.MapLive.IndexTest do
       refute html =~ "Other Map"
     end
 
+    test "filters created maps and group maps without exposing another user's maps", %{conn: conn} do
+      user = user_fixture()
+      scope = user_scope_fixture(user)
+      map_fixture(scope, %{"name" => "Created by me"})
+
+      {:ok, [community]} =
+        CATools.Communities.add_links(
+          scope,
+          "https://campfire.nianticlabs.com/discover/clubs/filter"
+        )
+
+      CATools.Repo.update!(
+        Ecto.Changeset.change(CATools.Repo.get!(CATools.Maps.UserMap, community.map_id),
+          name: "Tracked group"
+        )
+      )
+
+      map_fixture(user_scope_fixture(), %{"name" => "Someone else's map"})
+      {:ok, view, _} = conn |> log_in_user(user) |> live(~p"/dashboard/maps")
+      assert has_element?(view, "#map-cards a", "Created by me")
+      assert has_element?(view, "#map-cards a", "Tracked group")
+      refute has_element?(view, "#map-cards a", "Someone else's map")
+      view |> element("button[phx-value-filter=created]") |> render_click()
+      assert has_element?(view, "#map-cards a", "Created by me")
+      refute has_element?(view, "#map-cards a", "Tracked group")
+      view |> element("button[phx-value-filter=community]") |> render_click()
+      refute has_element?(view, "#map-cards a", "Created by me")
+      assert has_element?(view, "#map-cards a", "Tracked group")
+      send(view.pid, :refresh)
+      assert render(view) =~ "Tracked group"
+      assert has_element?(view, "button[phx-value-filter=community][aria-pressed=true]")
+      view |> element("button[phx-value-filter=all]") |> render_click()
+      assert has_element?(view, "#map-cards a", "Created by me")
+      assert has_element?(view, "#map-cards a", "Tracked group")
+    end
+
     test "creates a map from the dashboard form", %{conn: conn} do
       user = user_fixture()
 
@@ -54,7 +90,8 @@ defmodule CAToolsWeb.MapLive.IndexTest do
 
       assert html =~ "Map created. Campfire links have been queued for import."
       assert html =~ "Bay Area Map"
-      assert html =~ "2 Sources"
+      refute html =~ "2 Sources"
+      assert html =~ "atlas-map-card"
     end
 
     test "shows validation errors for unsupported links", %{conn: conn} do

@@ -77,7 +77,7 @@ defmodule CAToolsWeb.Auth.UserLive.Settings do
             Set your group link and private invitations in <.link
               navigate={~p"/dashboard/community"}
               class="underline"
-            >My Community</.link>.
+            >My Communities</.link>.
           </p>
 
           <p class="text-sm text-base-content/70">

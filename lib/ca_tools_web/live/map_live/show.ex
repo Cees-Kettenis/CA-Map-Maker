@@ -12,14 +12,26 @@ defmodule CAToolsWeb.MapLive.Show do
         raise CAToolsWeb.NotFoundError
 
       map ->
-        if connected?(socket), do: Process.send_after(self(), :refresh, 3_000)
+        if connected?(socket), do: Maps.subscribe(map.user_id)
 
         {:ok,
-         assign(socket,
+         socket
+         |> allow_upload(:map_image,
+           accept: ~w(.png .jpg .jpeg .webp .gif),
+           max_entries: 1,
+           max_file_size: 5_000_000
+         )
+         |> assign(
            map: map,
            points: Maps.point_data(map, true),
            page_title: map.name,
            editing?: false,
+           show_progress?: false,
+           show_past?: false,
+           view_time: DateTime.utc_now(),
+           expiry_timer: if(connected?(socket), do: Maps.schedule_expiry(map.points)),
+           linked_communities:
+             CATools.MeetupMaps.communities(socket.assigns.current_scope, map.id),
            form: to_form(Maps.change_existing_map(map), as: "map")
          )}
     end
@@ -36,14 +48,12 @@ defmodule CAToolsWeb.MapLive.Show do
         class="size-3"
       /> My Maps</.link>
       <div class="flex flex-wrap justify-between items-end gap-5 mb-7">
-        <div>
-          <h1 class="atlas-display text-3xl">
-            {@map.name}
-          </h1><p :if={@map.description not in [nil, ""]} class="mt-3 text-sm opacity-65">
-            {@map.description}
-          </p>
-        </div>
-        <div class="flex gap-2">
+        <.map_identity map={@map} />
+        <div class="flex flex-wrap gap-2">
+          <button
+            phx-click={JS.dispatch("atlas:open", to: "#delete-map-dialog")}
+            class="atlas-button atlas-button-danger"
+          ><.icon name="hero-trash" class="size-4" /> Delete map</button>
           <button phx-click="edit" class="atlas-button"><.icon
             name="hero-pencil-square"
             class="size-4"
@@ -52,10 +62,24 @@ defmodule CAToolsWeb.MapLive.Show do
             download="campfire-map.kml"
             class="atlas-button"
           ><.icon name="hero-arrow-down-tray" class="size-4" /> Export KML</.link>
+          <button
+            phx-click="toggle_progress"
+            aria-expanded={to_string(@show_progress?)}
+            aria-controls="map-import-progress"
+            class="atlas-button"
+          ><.icon name="hero-arrow-path" class="size-4" /> {if @show_progress?,
+            do: "Hide updates",
+            else: "Updates"}</button>
         </div>
       </div>
       <section :if={@editing?} class="atlas-card p-6 mb-7">
-        <.form for={@form} id="edit_map_form" phx-submit="save" class="grid sm:grid-cols-2 gap-4">
+        <.form
+          for={@form}
+          id="edit_map_form"
+          phx-change="validate_edit"
+          phx-submit="save"
+          class="grid sm:grid-cols-2 gap-4"
+        >
           <.input field={@form[:name]} label="Map name" required /><.input
             field={@form[:visibility]}
             type="select"
@@ -64,6 +88,30 @@ defmodule CAToolsWeb.MapLive.Show do
           />
           <div class="sm:col-span-2">
             <.input field={@form[:description]} type="textarea" label="Description" />
+          </div>
+          <div :if={is_nil(@map.community)} class="sm:col-span-2 space-y-3">
+            <label for={@uploads.map_image.ref} class="block text-sm opacity-65">Map image</label>
+            <.live_file_input
+              upload={@uploads.map_image}
+              class="file-input file-input-bordered w-full"
+            />
+            <p class="text-xs opacity-60">Square PNG, JPEG, WebP or GIF, up to 5 MB.</p>
+            <div :for={entry <- @uploads.map_image.entries} class="flex items-center gap-3">
+              <.live_img_preview entry={entry} class="size-20 rounded-xl object-contain" />
+              <button
+                type="button"
+                phx-click="cancel_image"
+                phx-value-ref={entry.ref}
+                class="atlas-button"
+              >Remove selection</button>
+              <p :for={error <- upload_errors(@uploads.map_image, entry)} class="text-sm text-error">
+                {case error do
+                  :too_large -> "Choose an image smaller than 5 MB."
+                  :not_accepted -> "Choose a PNG, JPEG, WebP or GIF image."
+                  _ -> "Could not upload this image."
+                end}
+              </p>
+            </div>
           </div>
           <div class="flex gap-2">
             <.button variant="primary">Save changes</.button><button
@@ -95,124 +143,24 @@ defmodule CAToolsWeb.MapLive.Show do
         >Copy share link</button>
         <.link href={~p"/maps/#{@map.public_slug}"} target="_blank" class="text-xs underline">Open public map</.link>
       </section>
-      <div class="grid xl:grid-cols-[1fr_300px] gap-6">
+      <div class={["grid gap-6", @show_progress? && "xl:grid-cols-[1fr_300px]"]}>
         <section class="atlas-card">
-          <.map_canvas id="owner-map" points={@points} /><div class="px-5 py-4 flex justify-between text-xs">
-            <span>{@map.points_count} meetup locations</span>
+          <.map_canvas id="owner-map" points={@points} now={@view_time} /><div class="px-5 py-4 flex justify-between text-xs">
+            <span>{length(Maps.active_points(@points, @view_time))} meetup locations</span>
           </div>
         </section>
-        <aside class="atlas-card p-5 space-y-5">
-          <h2 class="text-xl font-semibold flex items-center gap-3">
-            <span class="atlas-section-icon"><.icon name="hero-arrow-path" class="size-5" /></span>
-            Import progress
-          </h2>
-          <div class="space-y-3 text-sm">
-            <div class="flex justify-between">
-              <span>Source links</span><span>{@map.sources_count}</span>
-            </div><div class="flex justify-between">
-              <span>On the map</span><span>{@map.points_count}</span>
-            </div><div class="flex justify-between">
-              <span>Failed</span><span>{Enum.count(@map.sources, &(&1.status == :failed))}</span>
-            </div>
-          </div>
-          <p class="text-xs opacity-60">
-            Up to 50 links per 10 minutes across your maps. You can leave this page while imports run.
-          </p>
-          <div :for={batch <- @map.batches} class="border-t border-base-300 pt-4 space-y-3">
-            <div class="flex justify-between items-center">
-              <span class="text-xs">Batch #{batch.id}</span><span
-                class="atlas-status"
-                data-status={batch.status}
-              >{batch.status |> to_string() |> String.replace("_", " ")}</span>
-            </div>
-            <progress
-              class="progress progress-primary h-1"
-              value={batch.processed_count}
-              max={max(batch.total_count, 1)}
-              aria-label="Batch progress"
-            ></progress>
-            <p class="text-xs opacity-65">{batch.processed_count} of {batch.total_count} processed</p>
-            <button
-              :if={batch.status in [:queued, :processing]}
-              phx-click="cancel_batch"
-              phx-value-id={batch.id}
-              class="text-xs underline"
-              data-confirm="Stop the remaining imports in this batch?"
-            >Cancel batch</button>
-            <button
-              :if={Maps.force_fetch_enabled?() and batch.status in [:queued, :processing]}
-              phx-click="force_fetch_batch"
-              phx-value-id={batch.id}
-              phx-disable-with="Starting..."
-              class="atlas-button"
-            >Force fetch now</button>
-          </div>
-          <div class="border-t border-base-300 pt-4 flex flex-col gap-2">
-            <button phx-click="refresh" phx-value-mode="failed" class="atlas-button">Retry failed links</button><button
-              phx-click="refresh"
-              phx-value-mode="stale"
-              class="atlas-button"
-            >Refresh stale links</button><button
-              phx-click="refresh"
-              phx-value-mode="all"
-              class="atlas-button"
-            >Refresh all links</button>
-          </div>
+        <aside :if={@show_progress?} id="map-import-progress" class="atlas-card p-5 space-y-5">
+          <.update_summary map={@map} />
         </aside>
       </div>
-      <section class="mt-9">
-        <div class="flex items-center justify-between mb-4">
-          <h2 class="text-xl font-semibold">Meetups</h2>
-        </div>
-        <div :if={@points == []} class="atlas-empty text-sm opacity-65">
-          No locations yet.
-        </div>
-        <div class="grid md:grid-cols-3 gap-4">
-          <article :for={point <- @points} class="atlas-card p-5">
-            <.meetup_image image_url={point.cover_photo_url} title={point.title} />
-            <.meetup_host name={point.host_name} avatar_url={point.host_avatar_url} />
-            <h3 class="font-semibold">{point.title}</h3><p class="text-sm opacity-65 mt-2">
-              {point.group_name}
-            </p><p class="text-xs mt-2 opacity-60">{point.address}</p><p
-              :if={point.starts_at}
-              class="text-xs mt-3"
-            >
-              {Calendar.strftime(point.starts_at, "%d %b %Y · %H:%M UTC")}
-            </p><.link
-              href={point.source_url}
-              target="_blank"
-              rel="noopener noreferrer"
-              class="text-xs underline mt-4 inline-block"
-            >View on Campfire</.link>
-          </article>
-        </div>
-      </section>
-      <section class="mt-9">
-        <h2 class="text-xl font-semibold mb-4">Source links</h2><div class="atlas-card divide-y divide-base-300">
-          <div
-            :for={source <- @map.sources}
-            class="px-5 py-4 flex flex-wrap gap-3 justify-between items-center"
-          >
-            <div class="min-w-0 flex-1">
-              <a
-                href={source.original_url}
-                target="_blank"
-                rel="noopener noreferrer"
-                class="text-xs underline break-all"
-              >{source.original_url}</a><p :if={source.error_message} class="text-xs text-error mt-1">
-                {source.error_message}
-              </p>
-            </div><span class="atlas-status" data-status={source.status}>{source.status}</span>
-          </div>
-        </div>
-      </section>
-      <div class="mt-9 flex justify-end">
-        <button
-          phx-click="delete"
-          data-confirm="Delete this map and all its locations? This cannot be undone."
-          class="text-xs text-error underline"
-        >Delete map</button>
-      </div>
+      <.meetup_section id="owner-meetups" points={@points} show_past={@show_past?} now={@view_time} />
+      <.delete_confirmation
+        id="delete-map-dialog"
+        name={@map.name}
+        event="delete"
+        target_id={@map.id}
+        community={not is_nil(@map.community)}
+      />
     </Layouts.app>
     """
   end
@@ -226,22 +174,85 @@ defmodule CAToolsWeb.MapLive.Show do
     id = socket.assigns.map.id
 
     case event do
+      "update_now" ->
+        Maps.request_update(scope, id)
+        {:noreply, put_flash(socket, :info, "Update started.")}
+
+      "toggle_progress" ->
+        {:noreply, assign(socket, show_progress?: !socket.assigns.show_progress?)}
+
+      "toggle_past" ->
+        {:noreply, assign(socket, show_past?: !socket.assigns.show_past?)}
+
+      "retry_images" ->
+        case CATools.Maps.ImageCache.retry_failed(scope, id) do
+          {:ok, count} ->
+            {:noreply,
+             put_flash(socket, :info, "#{count} failed image downloads queued for retry.")}
+
+          _ ->
+            {:noreply, put_flash(socket, :error, "Could not retry image downloads.")}
+        end
+
       "edit" ->
         {:noreply, assign(socket, editing?: !socket.assigns.editing?)}
 
+      "validate_edit" ->
+        changeset = Maps.change_existing_map(socket.assigns.map, params["map"] || %{})
+        {:noreply, assign(socket, form: to_form(%{changeset | action: :validate}, as: "map"))}
+
+      "cancel_image" ->
+        {:noreply, cancel_upload(socket, :map_image, params["ref"])}
+
       "save" ->
-        case Maps.update_map(scope, id, params["map"]) do
-          {:ok, map} ->
+        attrs = Map.delete(params["map"] || %{}, "image_id")
+        changeset = Maps.change_existing_map(socket.assigns.map, attrs)
+
+        if changeset.valid? do
+          images =
+            if is_nil(socket.assigns.map.community) do
+              consume_uploaded_entries(socket, :map_image, fn %{path: path}, _entry ->
+                {:ok, CATools.Maps.ImageCache.store_upload(path)}
+              end)
+            else
+              []
+            end
+
+          if Enum.any?(images, &match?({:error, _}, &1)) do
             {:noreply,
-             socket
-             |> assign(map: map, editing?: false, page_title: map.name)
-             |> put_flash(:info, "Map updated.")}
+             put_flash(
+               socket,
+               :error,
+               "Could not save the image. Choose a valid image and try again."
+             )}
+          else
+            attrs =
+              case images do
+                [{:ok, image_id}] -> Map.put(attrs, "image_id", image_id)
+                _ -> attrs
+              end
 
-          {:error, %Ecto.Changeset{} = changeset} ->
-            {:noreply, assign(socket, form: to_form(changeset, as: "map"))}
+            case Maps.update_map(scope, id, attrs) do
+              {:ok, map} ->
+                {:noreply,
+                 socket
+                 |> assign(
+                   map: map,
+                   editing?: false,
+                   page_title: map.name,
+                   form: to_form(Maps.change_existing_map(map), as: "map")
+                 )
+                 |> put_flash(:info, "Map updated.")}
 
-          _ ->
-            {:noreply, push_navigate(socket, to: ~p"/dashboard/maps")}
+              {:error, %Ecto.Changeset{} = changeset} ->
+                {:noreply, assign(socket, form: to_form(changeset, as: "map"))}
+
+              _ ->
+                {:noreply, push_navigate(socket, to: ~p"/dashboard/maps")}
+            end
+          end
+        else
+          {:noreply, assign(socket, form: to_form(%{changeset | action: :validate}, as: "map"))}
         end
 
       "delete" ->
@@ -249,48 +260,6 @@ defmodule CAToolsWeb.MapLive.Show do
 
         {:noreply,
          socket |> put_flash(:info, "Map deleted.") |> push_navigate(to: ~p"/dashboard/maps")}
-
-      "refresh" ->
-        mode =
-          case params["mode"] do
-            "all" -> :all
-            "stale" -> :stale
-            _ -> :failed
-          end
-
-        case Maps.refresh_map(scope, id, mode) do
-          {:ok, _} ->
-            {:noreply, put_flash(socket, :info, "Links queued for refresh.")}
-
-          {:error, :no_sources} ->
-            {:noreply, put_flash(socket, :info, "No links need refreshing.")}
-
-          _ ->
-            {:noreply, put_flash(socket, :error, "Could not refresh this map.")}
-        end
-
-      "force_fetch_batch" ->
-        case Maps.force_fetch_batch(scope, id, params["id"]) do
-          {:ok, count} ->
-            map = Maps.get_map(scope, id)
-
-            message =
-              if count > 0,
-                do: "#{count} imports started immediately.",
-                else: "This batch is already running."
-
-            {:noreply,
-             socket
-             |> assign(map: map, points: Maps.point_data(map, true))
-             |> put_flash(:info, message)}
-
-          _ ->
-            {:noreply, put_flash(socket, :error, "Could not force this batch to run.")}
-        end
-
-      "cancel_batch" ->
-        Maps.cancel_batch(scope, id, params["id"])
-        {:noreply, put_flash(socket, :info, "Batch cancelled. Imported locations are kept.")}
     end
   end
 
@@ -304,8 +273,13 @@ defmodule CAToolsWeb.MapLive.Show do
         {:noreply, push_navigate(socket, to: ~p"/dashboard/maps")}
 
       map ->
-        Process.send_after(self(), :refresh, 3_000)
-        {:noreply, assign(socket, map: map, points: Maps.point_data(map, true))}
+        {:noreply,
+         assign(socket,
+           map: map,
+           points: Maps.point_data(map, true),
+           view_time: DateTime.utc_now(),
+           expiry_timer: Maps.schedule_expiry(map.points, socket.assigns.expiry_timer)
+         )}
     end
   end
 end

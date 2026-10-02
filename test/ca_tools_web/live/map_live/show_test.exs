@@ -5,16 +5,23 @@ defmodule CAToolsWeb.MapLive.ShowTest do
   import CATools.MapsFixtures
   alias CATools.Maps
 
-  test "temporary force-fetch button starts its selected batch", %{conn: conn} do
+  test "update now starts pending links without displaying batches", %{conn: conn} do
     user = user_fixture()
     map = map_fixture(user_scope_fixture(user))
     {:ok, view, _} = conn |> log_in_user(user) |> live(~p"/dashboard/maps/#{map.id}")
-    assert has_element?(view, "button[phx-click='force_fetch_batch']", "Force fetch now")
+    refute has_element?(view, "#map-import-progress")
+    view |> element("button[phx-click='toggle_progress']") |> render_click()
+    assert has_element?(view, "button[phx-click='update_now']", "Update now")
+    refute render(view) =~ "Batch #"
+    assert render(view) =~ "Last updated"
+    assert render(view) =~ "Scheduled update"
 
-    assert view |> element("button[phx-click='force_fetch_batch']") |> render_click() =~
-             "2 imports started immediately."
+    assert view |> element("button[phx-click='update_now']") |> render_click() =~
+             "Update started."
 
-    assert CATools.Repo.get!(CATools.Maps.ImportBatch, hd(map.batches).id).status == :processing
+    for source <- map.sources do
+      assert CATools.Repo.get!(CATools.Maps.MapSource, source.id).next_fetch_at
+    end
   end
 
   test "meetup cards display cover photos and export links are marked as downloads", %{conn: conn} do
@@ -26,6 +33,8 @@ defmodule CAToolsWeb.MapLive.ShowTest do
         map_id: map.id,
         map_source_id: hd(map.sources).id,
         title: "Cover meetup",
+        starts_at: ~U[2026-10-03 06:00:00Z],
+        ends_at: ~U[2099-10-03 10:00:00Z],
         latitude: 3.139,
         longitude: 101.68,
         cover_photo_url: "https://cdn.example.com/cover.jpg",
@@ -34,14 +43,46 @@ defmodule CAToolsWeb.MapLive.ShowTest do
       )
     )
 
+    for url <- ["https://cdn.example.com/cover.jpg", "https://cdn.example.com/avatar.jpg"] do
+      CATools.Repo.insert!(%CATools.Maps.CachedImage{
+        id: CATools.Maps.ImageCache.key(url),
+        content_type: "image/jpeg",
+        attempted_at: DateTime.utc_now(:second)
+      })
+
+      File.mkdir_p!(CATools.Maps.ImageCache.directory())
+
+      File.write!(
+        Path.join(CATools.Maps.ImageCache.directory(), CATools.Maps.ImageCache.key(url)),
+        <<255, 216, 255>>
+      )
+    end
+
+    cover = "/media/meetups/" <> CATools.Maps.ImageCache.key("https://cdn.example.com/cover.jpg")
+
+    avatar =
+      "/media/meetups/" <> CATools.Maps.ImageCache.key("https://cdn.example.com/avatar.jpg")
+
     {:ok, view, _} = conn |> log_in_user(user) |> live(~p"/dashboard/maps/#{map.id}")
-    assert has_element?(view, "img[src='https://cdn.example.com/cover.jpg'][alt='Cover meetup']")
+    assert has_element?(view, "img[src='#{cover}'][alt='Cover meetup']")
+
+    assert has_element?(
+             view,
+             "time[datetime='2026-10-03T06:00:00Z'][data-ends-at='2099-10-03T10:00:00Z'][phx-hook='LocalTime']"
+           )
+
     assert has_element?(view, ".atlas-meetup-host", "Trainer Host")
-    assert has_element?(view, ".atlas-meetup-host img[src='https://cdn.example.com/avatar.jpg']")
+    assert has_element?(view, ".atlas-meetup-host img[src='#{avatar}']")
     assert has_element?(view, "a[href='/dashboard/maps/#{map.id}/export.kml'][download]")
     {:ok, map} = Maps.update_map(user_scope_fixture(user), map.id, %{visibility: "public"})
     {:ok, public, _} = live(conn, ~p"/maps/#{map.public_slug}")
-    assert has_element?(public, "img[src='https://cdn.example.com/cover.jpg']")
+    assert has_element?(public, "img[src='#{cover}']")
+
+    assert has_element?(
+             public,
+             "time[datetime='2026-10-03T06:00:00Z'][data-ends-at='2099-10-03T10:00:00Z'][phx-hook='LocalTime']"
+           )
+
     assert has_element?(public, ".atlas-meetup-host", "Trainer Host")
     assert has_element?(public, "a[download]")
   end
@@ -50,7 +91,7 @@ defmodule CAToolsWeb.MapLive.ShowTest do
     user = user_fixture()
     map = map_fixture(user_scope_fixture(user))
     {:ok, view, html} = conn |> log_in_user(user) |> live(~p"/dashboard/maps/#{map.id}")
-    assert html =~ "Import progress"
+    assert html =~ "Updates"
     view |> element("button", "Edit map") |> render_click()
 
     assert view
@@ -59,7 +100,7 @@ defmodule CAToolsWeb.MapLive.ShowTest do
 
     assert has_element?(view, "#share_url")
     assert Maps.get_map(user_scope_fixture(user), map.id).visibility == :public
-    view |> element("button", "Delete map") |> render_click()
+    view |> element("#delete-map-dialog button[phx-click='delete']") |> render_click()
     assert_redirect(view, ~p"/dashboard/maps")
     assert Maps.get_map(user_scope_fixture(user), map.id) == nil
   end

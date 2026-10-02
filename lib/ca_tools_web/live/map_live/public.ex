@@ -7,8 +7,6 @@ defmodule CAToolsWeb.MapLive.Public do
   @doc false
   @spec mount(map(), map(), Phoenix.LiveView.Socket.t()) :: {:ok, Phoenix.LiveView.Socket.t()}
   def mount(params, _session, socket) do
-    if connected?(socket), do: Process.send_after(self(), :refresh, 3_000)
-
     shared? = Map.has_key?(params, "id")
 
     map =
@@ -21,6 +19,8 @@ defmodule CAToolsWeb.MapLive.Public do
         raise CAToolsWeb.NotFoundError
 
       map ->
+        if connected?(socket), do: Maps.subscribe(map.user_id)
+
         export_url =
           if shared?,
             do: ~p"/community/maps/#{map.id}/export.kml",
@@ -32,6 +32,9 @@ defmodule CAToolsWeb.MapLive.Public do
            points: Maps.point_data(map),
            page_title: map.name,
            shared?: shared?,
+           show_past?: false,
+           view_time: DateTime.utc_now(),
+           expiry_timer: if(connected?(socket), do: Maps.schedule_expiry(map.points)),
            export_url: export_url
          )}
     end
@@ -52,10 +55,23 @@ defmodule CAToolsWeb.MapLive.Public do
         {:noreply, push_navigate(socket, to: ~p"/")}
 
       map ->
-        Process.send_after(self(), :refresh, 3_000)
-        {:noreply, assign(socket, map: map, points: Maps.point_data(map), page_title: map.name)}
+        {:noreply,
+         assign(socket,
+           map: map,
+           points: Maps.point_data(map),
+           page_title: map.name,
+           view_time: DateTime.utc_now(),
+           expiry_timer: Maps.schedule_expiry(map.points, socket.assigns.expiry_timer)
+         )}
     end
   end
+
+  @impl true
+  @doc false
+  @spec handle_event(String.t(), map(), Phoenix.LiveView.Socket.t()) ::
+          {:noreply, Phoenix.LiveView.Socket.t()}
+  def handle_event("toggle_past", _params, socket),
+    do: {:noreply, assign(socket, show_past?: !socket.assigns.show_past?)}
 
   @impl true
   @doc false
@@ -64,40 +80,19 @@ defmodule CAToolsWeb.MapLive.Public do
     ~H"""
     <Layouts.app flash={@flash} current_scope={@current_scope}>
       <div class="flex flex-wrap justify-between items-end gap-5 mb-8">
-        <div>
-          <h1 class="atlas-display text-3xl">
-            {@map.name}
-          </h1><p :if={@map.description not in [nil, ""]} class="mt-3 text-sm opacity-70 max-w-xl">
-            {@map.description}
-          </p>
-        </div>
+        <.map_identity map={@map} />
         <.link href={@export_url} download="campfire-map.kml" class="atlas-button"><.icon
           name="hero-arrow-down-tray"
           class="size-4"
         /> Export KML</.link>
       </div>
-      <section class="atlas-card"><.map_canvas id="public-map" points={@points} /></section>
-      <p class="text-xs opacity-60 mt-3">
-        {length(@points)} meetup locations
-      </p>
-      <div :if={@points == []} class="atlas-empty mt-6">
-        No locations yet.
-      </div>
-      <section class="grid md:grid-cols-3 gap-4 mt-8" aria-label="Meetup locations">
-        <article :for={point <- @points} class="atlas-card p-5">
-          <.meetup_image image_url={point.cover_photo_url} title={point.title} />
-          <.meetup_host name={point.host_name} avatar_url={point.host_avatar_url} />
-          <h2 class="font-semibold">
-            {point.title}
-          </h2>
-          <p class="text-sm opacity-65 mt-2">{point.group_name}</p><p class="text-xs opacity-60 mt-2">
-            {point.address}
-          </p>
-          <p :if={point.starts_at} class="text-xs mt-3">
-            {Calendar.strftime(point.starts_at, "%d %b %Y · %H:%M UTC")}
-          </p>
-        </article>
+      <section class="atlas-card">
+        <.map_canvas id="public-map" points={@points} now={@view_time} />
       </section>
+      <p class="text-xs opacity-60 mt-3">
+        {length(Maps.active_points(@points, @view_time))} meetup locations
+      </p>
+      <.meetup_section id="public-meetups" points={@points} show_past={@show_past?} now={@view_time} />
     </Layouts.app>
     """
   end
