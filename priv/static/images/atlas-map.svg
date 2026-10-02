@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 620" preserveAspectRatio="xMidYMid slice">
+  <defs>
+    <linearGradient id="paper" x2="1" y2="1"><stop stop-color="#f0f2fc"/><stop offset="1" stop-color="#e8edf8"/></linearGradient>
+    <linearGradient id="water" x2="1" y2="1"><stop stop-color="#dce7fa"/><stop offset="1" stop-color="#cbdcf6"/></linearGradient>
+    <linearGradient id="pin" x2="1" y2="1"><stop stop-color="#818cf8"/><stop offset="1" stop-color="#397fec"/></linearGradient>
+    <pattern id="grid" width="38" height="38" patternUnits="userSpaceOnUse"><path d="M38 0H0V38" fill="none" stroke="#8495c5" stroke-width=".5" opacity=".15"/></pattern>
+    <filter id="shadow" x="-60%" y="-40%" width="220%" height="220%"><feDropShadow dy="7" stdDeviation="8" flood-color="#465b9c" flood-opacity=".22"/></filter>
+  </defs>
+  <rect width="900" height="620" fill="url(#paper)"/>
+  <rect width="900" height="620" fill="url(#grid)"/>
+  <path d="M-70 100C110 300 260 110 405 265S690 480 980 190" fill="none" stroke="url(#water)" stroke-width="85"/>
+  <g fill="#e1e3f3" stroke="#d8ddee" stroke-width="2">
+    <path d="M90 45l155 30-40 105-125-30zM530 30l215 35-55 150-140-35zM660 410l115-25 75 135-160 40zM120 370l170 45-60 160-135-55z"/>
+    <path d="M380 30l70 5-15 115-95-35zM25 210l105 35-35 80-100-30zM720 80l125 20-40 120-95-35zM330 420l125 35-30 110-110-25z"/>
+  </g>
+  <g fill="#eadfef" opacity=".8"><path d="M450 380l110 35-35 135-90-25zM275 70l65 20-35 70-60-20z"/></g>
+  <g fill="none" stroke="#d7deee" stroke-width="20" stroke-linecap="round">
+    <path d="M-30 50 950 515M-40 430 835-35M100 690 515-40M400 680 830-40M-30 580 970 240M-30 325 980 350M305-30 330 690"/>
+  </g>
+  <g fill="none" stroke="#fff" stroke-width="14" stroke-linecap="round">
+    <path d="M-30 50 950 515M-40 430 835-35M100 690 515-40M400 680 830-40M-30 580 970 240M-30 325 980 350M305-30 330 690"/>
+  </g>
+  <path d="M310 250 330 338 470 345 570 200 620 225 610 405" fill="none" stroke="#fff" stroke-width="10" stroke-linejoin="round"/>
+  <path d="M310 250 330 338 470 345 570 200 620 225 610 405" fill="none" class="atlas-art-route" stroke="#8591ed" stroke-width="4" stroke-dasharray="8 9" stroke-linecap="round" stroke-linejoin="round"/>
+  <g class="atlas-art-rings" fill="none" stroke="#a5b4e6" opacity=".24"><circle cx="310" cy="250" r="40" stroke-width="18"/><circle cx="310" cy="250" r="65"/></g>
+  <g filter="url(#shadow)">
+    <g transform="translate(310 250)"><g class="atlas-art-pin atlas-art-pin-1"><path d="M0-47a25 25 0 0 0-25 25C-25-5 0 15 0 15S25-5 25-22A25 25 0 0 0 0-47Z" fill="url(#pin)" stroke="#fff" stroke-width="3"/><circle cy="-23" r="8" fill="#fff"/></g></g>
+    <g transform="translate(570 200)"><g class="atlas-art-pin atlas-art-pin-2"><path d="M0-40a21 21 0 0 0-21 21C-21-4 0 14 0 14S21-4 21-19A21 21 0 0 0 0-40Z" fill="#a18ce7" stroke="#fff" stroke-width="3"/><circle cy="-20" r="7" fill="#fff"/></g></g>
+    <g transform="translate(610 405)"><g class="atlas-art-pin atlas-art-pin-3"><path d="M0-40a21 21 0 0 0-21 21C-21-4 0 14 0 14S21-4 21-19A21 21 0 0 0 0-40Z" fill="#f0917d" stroke="#fff" stroke-width="3"/><circle cy="-20" r="7" fill="#fff"/></g></g>
+  </g>
+</svg>

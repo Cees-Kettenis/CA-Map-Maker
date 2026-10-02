@@ -36,38 +36,30 @@ defmodule CAToolsWeb.Layouts do
   @spec app(map()) :: Phoenix.LiveView.Rendered.t()
   def app(assigns) do
     ~H"""
-    <header class="navbar px-4 sm:px-6 lg:px-8">
-      <div class="flex-1">
-        <a href="/" class="flex-1 flex w-fit items-center gap-2">
-          <img src={~p"/images/logo.svg"} width="36" />
-          <span class="text-sm font-semibold">v{Application.spec(:phoenix, :vsn)}</span>
-        </a>
-      </div>
-      <div class="flex-none">
-        <ul class="flex flex-column px-1 space-x-4 items-center">
-          <li>
-            <a href="https://phoenixframework.org/" class="btn btn-ghost">Website</a>
-          </li>
-          <li>
-            <a href="https://github.com/phoenixframework/phoenix" class="btn btn-ghost">GitHub</a>
-          </li>
-          <li>
-            <.theme_toggle />
-          </li>
-          <li>
-            <a href="https://hexdocs.pm/phoenix/overview.html" class="btn btn-primary">
-              Get Started <span aria-hidden="true">&rarr;</span>
-            </a>
-          </li>
-        </ul>
-      </div>
+    <header class="atlas-nav">
+      <a href={~p"/"} class="atlas-brand" aria-label="Campfire Atlas home">
+        <span class="atlas-brand-mark"><.icon name="hero-map" class="size-5" /></span>
+        <span>campfire<span class="font-normal opacity-60"> atlas</span></span>
+      </a>
+      <nav aria-label="Main navigation" class="flex items-center gap-2 sm:gap-5 text-sm">
+        <%= if @current_scope do %>
+          <.link navigate={~p"/dashboard/maps"} class="nav-link">My Maps</.link>
+          <.link navigate={~p"/auth/users/settings"} class="nav-link">Settings</.link>
+          <.link href={~p"/auth/users/log-out"} method="delete" class="nav-link">Log out</.link>
+        <% else %>
+          <.link navigate={~p"/auth/users/log-in"} class="nav-link">Log in</.link>
+          <.link navigate={~p"/auth/users/register"} class="btn btn-primary btn-sm">Get started
+          <.icon name="hero-arrow-up-right" class="size-4" /></.link>
+        <% end %>
+        <span class="hidden md:block"><.theme_toggle /></span>
+      </nav>
     </header>
-
-    <main class="px-4 py-20 sm:px-6 lg:px-8">
-      <div class="mx-auto max-w-2xl space-y-4">
-        {render_slot(@inner_block)}
-      </div>
+    <main class="atlas-main">
+      {render_slot(@inner_block)}
     </main>
+    <footer class="atlas-footer">
+      <span>Campfire Atlas · Independent community tool</span>
+    </footer>
 
     <.flash_group flash={@flash} />
     """
@@ -130,24 +122,24 @@ defmodule CAToolsWeb.Layouts do
 
       <button
         class="flex p-2 cursor-pointer w-1/3"
-        phx-click={JS.dispatch("phx:set-theme")}
         data-phx-theme="system"
+        aria-label="Use system theme"
       >
         <.icon name="hero-computer-desktop-micro" class="size-4 opacity-75 hover:opacity-100" />
       </button>
 
       <button
         class="flex p-2 cursor-pointer w-1/3"
-        phx-click={JS.dispatch("phx:set-theme")}
         data-phx-theme="light"
+        aria-label="Use light theme"
       >
         <.icon name="hero-sun-micro" class="size-4 opacity-75 hover:opacity-100" />
       </button>
 
       <button
         class="flex p-2 cursor-pointer w-1/3"
-        phx-click={JS.dispatch("phx:set-theme")}
         data-phx-theme="dark"
+        aria-label="Use dark theme"
       >
         <.icon name="hero-moon-micro" class="size-4 opacity-75 hover:opacity-100" />
       </button>

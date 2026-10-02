@@ -4,7 +4,9 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="csrf-token" content={get_csrf_token()} />
-    <.live_title default="CATools" suffix=" · Phoenix Framework" phx-no-format>{assigns[:page_title]}</.live_title>
+    <.live_title default="Welcome" suffix=" · Campfire Atlas" phx-no-format>{assigns[:page_title]}</.live_title>
+    <link rel="icon" href={~p"/favicon.ico"} sizes="16x16 32x32 48x48" />
+    <link rel="icon" type="image/svg+xml" href={~p"/images/atlas-icon.svg"} sizes="any" />
     <link phx-track-static rel="stylesheet" href={~p"/assets/css/app.css"} />
     <link rel="stylesheet" href={~p"/vendor/leaflet/leaflet.css"} />
     <script defer src={~p"/vendor/leaflet/leaflet.js"}>
@@ -13,48 +15,31 @@
     </script>
     <script>
       (() => {
-        const setTheme = (theme) => {
-          if (theme === "system") {
-            localStorage.removeItem("phx:theme");
-            document.documentElement.removeAttribute("data-theme");
-          } else {
-            localStorage.setItem("phx:theme", theme);
-            document.documentElement.setAttribute("data-theme", theme);
-          }
+        const systemTheme = window.matchMedia("(prefers-color-scheme: dark)");
+        const applyTheme = () => {
+          const preference = localStorage.getItem("phx:theme") || "light";
+          const theme = preference === "system" ? (systemTheme.matches ? "dark" : "light") : preference;
+          document.documentElement.setAttribute("data-theme", theme);
         };
-        if (!document.documentElement.hasAttribute("data-theme")) {
-          setTheme(localStorage.getItem("phx:theme") || "system");
-        }
-        window.addEventListener("storage", (e) => e.key === "phx:theme" && setTheme(e.newValue || "system"));
-        
-        window.addEventListener("phx:set-theme", (e) => setTheme(e.target.dataset.phxTheme));
+        applyTheme();
+        document.addEventListener("click", (event) => {
+          const button = event.target.closest("button[data-phx-theme]");
+          if (button) {
+            localStorage.setItem("phx:theme", button.dataset.phxTheme);
+            applyTheme();
+          }
+        });
+        window.addEventListener("storage", (event) => {
+          if (event.key === "phx:theme" || event.key === null) applyTheme();
+        });
+        window.addEventListener("phx:page-loading-stop", applyTheme);
+        systemTheme.addEventListener("change", () => {
+          if (localStorage.getItem("phx:theme") === "system") applyTheme();
+        });
       })();
     </script>
   </head>
   <body>
-    <ul class="menu menu-horizontal w-full relative z-10 flex items-center gap-4 px-4 sm:px-6 lg:px-8 justify-end">
-      <%= if @current_scope do %>
-        <li>
-          <.link href={~p"/dashboard/maps"}>Dashboard</.link>
-        </li>
-        <li>
-          {@current_scope.user.email}
-        </li>
-        <li>
-          <.link href={~p"/auth/users/settings"}>Settings</.link>
-        </li>
-        <li>
-          <.link href={~p"/auth/users/log-out"} method="delete">Log out</.link>
-        </li>
-      <% else %>
-        <li>
-          <.link href={~p"/auth/users/register"}>Register</.link>
-        </li>
-        <li>
-          <.link href={~p"/auth/users/log-in"}>Log in</.link>
-        </li>
-      <% end %>
-    </ul>
     {@inner_content}
   </body>
 </html>
