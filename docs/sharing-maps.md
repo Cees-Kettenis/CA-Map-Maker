@@ -1,5 +1,7 @@
 # Sharing a map
 
+For invitation-only access to a monitored group map, use [My Community](my-community.md). The steps below apply to maps created from individual meetup links.
+
 1. Open your map and select **Edit map**.
 2. Set visibility to **Public** and save.
 3. Select **Copy share link** and send the link to your community.

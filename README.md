@@ -18,7 +18,8 @@ meetups you want to include, share a public map, or export KML for Google My Map
 1. [Map creation](docs/creating-maps.md): imports meetup locations, names, groups, and times using your Campfire account.
 2. [Sharing](docs/sharing-maps.md): publishes a map through a public link, with private maps visible only to their owner.
 3. [KML exports](docs/kml-exports.md): downloads locations for manual import into Google My Maps.
-4. [Background imports](docs/imports.md): processes large submissions in batches, with progress, retries, refreshes, and cancellation.
+4. [My Community](docs/my-community.md): monitors your group for new meetups and shares its map only with invited, signed-in accounts.
+5. [Background imports](docs/imports.md): processes large submissions in batches, with progress, retries, refreshes, and cancellation.
 
 See the [user guide](docs/README.md) for account setup, Campfire tokens, and task guides.
 

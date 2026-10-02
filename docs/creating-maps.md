@@ -6,7 +6,7 @@ Save your [Campfire token](campfire-credentials.md) first.
 2. Under **Make a new map**, enter a name and an optional description.
 3. Choose **Private** for your own use or **Public** to share a link.
 4. Paste one meetup link per line and select **Create Map**.
-5. Open the map to check progress. Select a marker to see its meetup details.
+5. Open the map to check progress. Select a marker to see its meetup details and cover photo. Meetups at the same coordinates share a marker, with the soonest upcoming meetup first.
 
 ## Supported links
 
@@ -20,7 +20,7 @@ https://campfire.nianticlabs.com/discover/events/...
 https://niantic-social.nianticlabs.com/public/meetup/...
 ```
 
-Club links are not supported. The Campfire account associated with your token
+Use [My Community](my-community.md) to monitor a group. Club links are not supported in this meetup form. The Campfire account associated with your token
 must be able to access the meetups.
 
 ## Import behavior

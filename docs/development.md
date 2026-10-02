@@ -23,6 +23,7 @@ mise exec -- mix test
 MIX_ENV=test mise exec -- mix dialyzer
 mise exec -- mix format
 mise exec -- mix assets.build
+mise exec -- node --test test/js/*.mjs
 ```
 
 Tests cover authenticated event requests, public ID translation, parsing, failure handling, import jobs, batch limits, CRUD ownership, private/public access, KML, confirmation and recovery. They don't use a real Campfire token.

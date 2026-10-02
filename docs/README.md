@@ -4,6 +4,7 @@ Choose the task you want to perform.
 
 | I want to | Guide |
 | --- | --- |
+| Monitor my group and privately invite map viewers | [My Community](my-community.md) |
 | Create an account or recover my password | [Account setup](accounts.md) |
 | Save or replace my Campfire token | [Campfire credentials](campfire-credentials.md) |
 | Create a map from meetup links | [Map creation](creating-maps.md) |
