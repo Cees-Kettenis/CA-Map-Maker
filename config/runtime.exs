@@ -71,13 +71,56 @@ config :ca_tools, CAToolsWeb.Endpoint,
   http: [port: String.to_integer(System.get_env("PORT", "5000"))]
 
 if config_env() == :prod do
-  config :ca_tools, CATools.Mailer,
-    adapter: Swoosh.Adapters.Resend,
-    api_key: System.get_env("RESEND_API_KEY") || raise("RESEND_API_KEY is required in production")
+  smtp_settings =
+    Map.new(~w(SMTP_HOST SMTP_USERNAME SMTP_PASSWORD MAIL_FROM), fn name ->
+      value = System.get_env(name)
 
-  config :ca_tools,
-         :mail_from,
-         System.get_env("MAIL_FROM") || raise("MAIL_FROM is required in production")
+      if is_nil(value) or String.trim(value) == "" do
+        raise "#{name} is required in production"
+      end
+
+      {name, value}
+    end)
+
+  smtp_security = System.get_env("SMTP_SECURITY", "starttls")
+
+  unless smtp_security in ~w(starttls ssl) do
+    raise "SMTP_SECURITY must be starttls or ssl"
+  end
+
+  smtp_port =
+    System.get_env("SMTP_PORT", if(smtp_security == "ssl", do: "465", else: "587"))
+    |> String.to_integer()
+
+  unless smtp_port in 1..65535 do
+    raise "SMTP_PORT must be between 1 and 65535"
+  end
+
+  smtp_tls_options = [
+    versions: [:"tlsv1.2", :"tlsv1.3"],
+    verify: :verify_peer,
+    cacerts: :public_key.cacerts_get(),
+    server_name_indication: String.to_charlist(smtp_settings["SMTP_HOST"]),
+    depth: 99,
+    customize_hostname_check: [match_fun: :public_key.pkix_verify_hostname_match_fun(:https)]
+  ]
+
+  config :ca_tools, CATools.Mailer,
+    adapter: Swoosh.Adapters.SMTP,
+    relay: smtp_settings["SMTP_HOST"],
+    username: smtp_settings["SMTP_USERNAME"],
+    password: smtp_settings["SMTP_PASSWORD"],
+    port: smtp_port,
+    ssl: smtp_security == "ssl",
+    tls: if(smtp_security == "ssl", do: :never, else: :always),
+    auth: :always,
+    no_mx_lookups: true,
+    retries: 1,
+    timeout: 15_000,
+    tls_options: smtp_tls_options,
+    sockopts: if(smtp_security == "ssl", do: smtp_tls_options, else: [])
+
+  config :ca_tools, :mail_from, smtp_settings["MAIL_FROM"]
 
   database_url =
     System.get_env("DATABASE_URL") ||
@@ -108,12 +151,20 @@ if config_env() == :prod do
       You can generate one by calling: mix phx.gen.secret
       """
 
-  host = System.get_env("PHX_HOST") || "example.com"
+  if byte_size(secret_key_base) < 64 do
+    raise "SECRET_KEY_BASE must be at least 64 bytes; generate it with mix phx.gen.secret"
+  end
+
+  host = System.get_env("PHX_HOST") || "localhost"
 
   config :ca_tools, :dns_cluster_query, System.get_env("DNS_CLUSTER_QUERY")
 
   config :ca_tools, CAToolsWeb.Endpoint,
-    url: [host: host, port: 443, scheme: "https"],
+    url: [
+      host: host,
+      port: String.to_integer(System.get_env("PUBLIC_PORT", System.get_env("PORT", "5000"))),
+      scheme: "http"
+    ],
     http: [
       # Enable IPv6 and bind on all interfaces.
       # Set it to  {0, 0, 0, 0, 0, 0, 0, 1} for local network only access.
@@ -154,22 +205,9 @@ if config_env() == :prod do
   #       force_ssl: [hsts: true]
   #
   # Check `Plug.SSL` for all available options in `force_ssl`.
-
-  # ## Configuring the mailer
-  #
-  # In production you need to configure the mailer to use a different adapter.
-  # Here is an example configuration for Mailgun:
-  #
-  #     config :ca_tools, CATools.Mailer,
-  #       adapter: Swoosh.Adapters.Mailgun,
-  #       api_key: System.get_env("MAILGUN_API_KEY"),
-  #       domain: System.get_env("MAILGUN_DOMAIN")
-  #
-  # Most non-SMTP adapters require an API client. Swoosh supports Req, Hackney,
-  # and Finch out-of-the-box. This configuration is typically done at
-  # compile-time in your config/prod.exs:
-  #
-  #     config :swoosh, :api_client, Swoosh.ApiClient.Req
-  #
-  # See https://hexdocs.pm/swoosh/Swoosh.html#module-installation for details.
 end
+
+config :ca_tools,
+       :image_storage_path,
+       System.get_env("IMAGE_STORAGE_PATH") || Application.get_env(:ca_tools, :image_storage_path) ||
+         Path.expand("storage/meetup_images")

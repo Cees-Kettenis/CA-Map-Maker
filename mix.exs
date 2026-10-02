@@ -71,6 +71,10 @@ defmodule CATools.MixProject do
        compile: false,
        depth: 1},
       {:swoosh, "~> 1.16"},
+      # gen_smtp still uses Erlang's legacy catch syntax, deprecated in OTP 29.
+      # Limit the compatibility option to this dependency until upstream updates it.
+      {:gen_smtp, "~> 1.3",
+       override: true, system_env: [{"ERL_COMPILER_OPTIONS", "[nowarn_deprecated_catch]"}]},
       {:req, "~> 0.5"},
       {:oban, "~> 2.19"},
       {:xml_builder, "~> 2.2"},

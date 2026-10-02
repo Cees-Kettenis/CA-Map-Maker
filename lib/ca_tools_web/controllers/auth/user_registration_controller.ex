@@ -34,18 +34,23 @@ defmodule CAToolsWeb.Auth.UserRegistrationController do
       :ok ->
         case Accounts.register_user(user_params) do
           {:ok, user} ->
-            {:ok, _} =
-              Accounts.deliver_signup_instructions(
-                user,
-                &url(~p"/auth/users/log-in/#{&1}"),
-                &url(~p"/auth/users/confirm/#{&1}")
-              )
+            {kind, message} =
+              case Accounts.deliver_signup_instructions(
+                     user,
+                     &url(~p"/auth/users/log-in/#{&1}"),
+                     &url(~p"/auth/users/confirm/#{&1}")
+                   ) do
+                {:ok, _} ->
+                  {:info,
+                   "An email was sent to #{user.email}, please access it to confirm your account."}
+
+                {:error, _reason} ->
+                  {:error,
+                   "Your account was created, but we couldn't send its confirmation email. Contact the administrator."}
+              end
 
             conn
-            |> put_flash(
-              :info,
-              "An email was sent to #{user.email}, please access it to confirm your account."
-            )
+            |> put_flash(kind, message)
             |> redirect(to: ~p"/auth/users/log-in")
 
           {:error, %Ecto.Changeset{} = changeset} ->
