@@ -1,6 +1,6 @@
 # Campfire credentials
 
-The app uses your Campfire token to fetch meetups and monitor groups your account can access. See [My Community](my-community.md) to connect a group.
+The app uses your Campfire token to fetch meetups and monitor groups your account can access. See [My Communities](my-community.md) to connect a group.
 
 ## Save a token
 

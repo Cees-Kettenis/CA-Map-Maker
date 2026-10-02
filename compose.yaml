@@ -1,0 +1,52 @@
+name: campfire-atlas
+services:
+  db:
+    image: postgres:17.4-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ca_tools_prod
+      POSTGRES_USER: atlas
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env.docker}
+    volumes:
+      - database:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U atlas -d ca_tools_prod"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+  app:
+    build: .
+    image: campfire-atlas:local
+    restart: unless-stopped
+    init: true
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: ecto://atlas:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}@db/ca_tools_prod
+      SECRET_KEY_BASE: ${SECRET_KEY_BASE:?Set SECRET_KEY_BASE in .env.docker}
+      CREDENTIALS_MASTER_KEY_BASE64: ${CREDENTIALS_MASTER_KEY_BASE64:?Set CREDENTIALS_MASTER_KEY_BASE64 in .env.docker}
+      SMTP_HOST: ${SMTP_HOST:?Set SMTP_HOST in .env.docker}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_SECURITY: ${SMTP_SECURITY:-starttls}
+      SMTP_USERNAME: ${SMTP_USERNAME:?Set SMTP_USERNAME in .env.docker}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:?Set SMTP_PASSWORD in .env.docker}
+      MAIL_FROM: ${MAIL_FROM:?Set MAIL_FROM in .env.docker}
+      PHX_HOST: ${PHX_HOST:-localhost}
+      PUBLIC_PORT: ${APP_PORT:-5000}
+      PORT: "5000"
+      POOL_SIZE: ${POOL_SIZE:-10}
+      CAMPFIRE_GRAPHQL_ENDPOINT: ${CAMPFIRE_GRAPHQL_ENDPOINT:-https://niantic-social-api.nianticlabs.com/graphql}
+      MAP_TILE_URL: ${MAP_TILE_URL:-https://tile.openstreetmap.org/{z}/{x}/{y}.png}
+      OBAN_RETRY_QUEUE_LIMIT: ${OBAN_RETRY_QUEUE_LIMIT:-5}
+      IMAGE_STORAGE_PATH: /app/storage/meetup_images
+      OBAN_IMPORT_QUEUE_LIMIT: ${OBAN_IMPORT_QUEUE_LIMIT:-10}
+      OBAN_MAINTENANCE_QUEUE_LIMIT: ${OBAN_MAINTENANCE_QUEUE_LIMIT:-2}
+    ports:
+      - "127.0.0.1:${APP_PORT:-5000}:5000"
+    volumes:
+      - images:/app/storage/meetup_images
+
+volumes:
+  database:
+  images:

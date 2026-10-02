@@ -4,13 +4,13 @@ Choose the task you want to perform.
 
 | I want to | Guide |
 | --- | --- |
-| Monitor my group and privately invite map viewers | [My Community](my-community.md) |
+| Monitor my group and privately invite map viewers | [My Communities](my-community.md) |
 | Create an account or recover my password | [Account setup](accounts.md) |
 | Save or replace my Campfire token | [Campfire credentials](campfire-credentials.md) |
 | Create a map from meetup links | [Map creation](creating-maps.md) |
 | Share a map or make it private again | [Sharing and visibility](sharing-maps.md) |
 | Download locations for Google My Maps | [KML exports](kml-exports.md) |
-| Check progress, retry, refresh, or cancel imports | [Import management](imports.md) |
+| View the schedule or update a map now | [Import management](imports.md) |
 | Fix a failed import or missing location | [Troubleshooting](troubleshooting.md) |
 | Follow the complete workflow | [Quick start](user-guide.md) |
 

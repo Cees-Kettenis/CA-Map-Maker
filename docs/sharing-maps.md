@@ -1,6 +1,6 @@
 # Sharing a map
 
-For invitation-only access to a monitored group map, use [My Community](my-community.md). The steps below apply to maps created from individual meetup links.
+For invitation-only access to a monitored group map, use [My Communities](my-community.md). The steps below apply to maps created from individual meetup links.
 
 1. Open your map and select **Edit map**.
 2. Set visibility to **Public** and save.
@@ -17,8 +17,8 @@ open the share link in a private browser window.
 | Map name and description | Yes | Yes |
 | Meetup names, groups, locations, and times | Yes | Yes |
 | Campfire source links | No | Yes |
-| Import progress and errors | No | Yes |
-| Edit, refresh, cancel, and delete controls | No | Yes |
+| Last updated and scheduled update | No | Yes |
+| Edit, update now, and delete controls | No | Yes |
 | Saved Campfire token | No | No |
 
 Public views also omit your account email. Review the map's description and

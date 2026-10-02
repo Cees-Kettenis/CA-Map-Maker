@@ -1,44 +1,13 @@
-# Import management
+# Map updates
 
-Open a map to see its source links, batch progress, and imported locations.
-Imports continue while the browser is closed.
+New community links fetch their group and upcoming meetups in the background. Pasted meetup links fetch once when you create a map. Communities and unfinished meetups then update once a day, even while your browser is closed.
 
-## Progress
+Open **Updates** beside **Export KML** to see **Last updated**, **Scheduled update** and **Update now**. Select **Update now** to queue a fetch immediately instead of waiting for the daily schedule. Existing meetups stay visible during updates. Internal batch numbers are not shown.
 
-| Source status | Meaning |
-| --- | --- |
-| Pending | Waiting to be processed |
-| Processing | The app is fetching the meetup |
-| Fetched | The location was saved |
-| Failed | The fetch or parsing failed; an error appears beside the link |
-| Skipped | The source was skipped, such as a duplicate event or cancelled import |
+Creating a date map from communities refreshes the selected events' details. These maps read the communities' saved event records directly, so details and locally stored images are shared. Events moved to another day leave the date map automatically.
 
-Imports process up to 50 links every 10 minutes per account, shared across all
-its maps. A submission of 51 links needs at least two scheduling windows.
-Failed imports can retry automatically up to three attempts.
+Large automatic imports still process up to 50 links per account in each 10-minute scheduling window. This is a queue limit, not a recurring fetch interval. Failed event requests can retry up to three times. Finished meetups are excluded from automatic detail updates.
 
-## Retry or refresh
+Images are downloaded once per distinct URL. Viewing or refreshing a page uses the local copies. Failed image downloads are not retried automatically.
 
-| Action | Links queued |
-| --- | --- |
-| Retry failed links | Failed or skipped sources |
-| Refresh stale links | Completed sources last fetched more than 24 hours ago, or never fetched |
-| Refresh all links | All completed sources |
-
-Refreshes use the same scheduling limit. Existing locations remain visible
-while their sources are refreshed.
-
-If your token expired, [replace it](campfire-credentials.md) before retrying.
-See [troubleshooting](troubleshooting.md) for other failures.
-
-## Cancel a batch
-
-Select **Cancel batch** and confirm to stop remaining imports. Locations
-already fetched stay on the map. Use **Retry failed links** to queue skipped
-sources again when you are ready.
-
-## Temporary development control
-
-In development, **Force fetch now** starts the selected batch immediately and
-bypasses the 10-minute wait. It only affects that batch and does not duplicate
-running imports. This temporary control is disabled in production.
+If your token expired, [replace it](campfire-credentials.md) before updating. See [troubleshooting](troubleshooting.md) for other failures.

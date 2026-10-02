@@ -11,17 +11,17 @@ All six milestones in [the original plan](implementation-plan.md) now have imple
 | Campfire import | Req requests, bounded short-link redirects, public meetup ID translation, authenticated event query, normalized coordinates/times, duplicate-event handling |
 | Oban pipeline | Import batches, scheduler, persistent per-user scheduling windows, 50 links per 600 seconds across maps, retries, cancellation, progress, recovery of legacy sources |
 | Public map and KML | Leaflet/OpenStreetMap rendering, share links, public-safe JSON, public and private KML exports |
-| Security and tests | Rate limits, 10,000-link cap, 2 MB body limit, scoped access, SSRF checks, escaped popups/XML, redacted credentials, production key/mail requirements, secure cookies, tested recovery tokens |
+| Security and tests | Rate limits, 10,000-link cap, 2 MB body limit, scoped access, SSRF checks, escaped popups/XML, redacted credentials, production key/mail requirements, tested recovery tokens |
 
 ## Decisions resolved
 
 - Leaflet 1.9.4 and its license are included locally. OpenStreetMap is the default tile provider. `MAP_TILE_URL` can change the provider. The map component and JavaScript hook isolate rendering from importing. Owner and public pages update as imports finish; an open public page redirects away when its map becomes private.
-- Original/resolved Campfire source links appear only in owner views and owner KML. Public maps and public KML omit them.
+- Original/resolved Campfire source links are retained for import management and owner KML. Public maps and public KML omit them.
 - Raw Campfire responses are not stored. Only normalized fields and their SHA-256 hash are persisted.
 - Imports accept at most 10,000 unique source URLs. There is no lifetime map count limit. Creation requests are rate limited.
 - Token saving validates its format. Live Campfire authentication is checked during import. The UI states this explicitly and permits replacing an expired token.
 - Signup accepts a bcrypt password or email-only sign-in. Password accounts require confirmation before login and support one-hour, single-use recovery links. Resetting a password revokes sessions.
-- Refresh is owner-initiated for failed, stale, or all links. Stale means older than 24 hours. Every refresh uses the same per-user scheduler window.
+- Communities and unfinished meetup details update once a day. Update now queues an immediate owner-requested refresh. Linked date maps read shared community events without copying them. Live pages use change notifications instead of polling.
 - A minute-based maintenance job schedules legacy/pending sources. Oban Lifeline recovers stuck jobs, and Pruner removes old job records.
 - Public export is `/maps/:slug/export.kml`. The original `.kml` suffix route was an example; this route works with current Plug routing and Phoenix verified routes.
 
@@ -36,7 +36,7 @@ The implementation uses a map-specific subset of the same Event fields used by c
 - Direct discover links already contain the event ID. Short links need redirect resolution.
 - `niantic-social.nianticlabs.com/public/meetup/:id` contains a public map object ID. `publicMapObjectsById` on `/public/graphql` translates it to the event ID before the authenticated request.
 
-This app imports meetup/event links. Importing every event in a club feed is outside the supplied implementation plan.
+The app also monitors multiple community feeds, caches their icons and event images locally, and builds date maps from shared event records.
 
 ## Dependency warning fixes
 
@@ -52,8 +52,8 @@ These pins are in mix.exs and mix.lock. Revisit them when updating dependencies.
 
 ## External verification
 
-Validation completed with 190 passing tests, zero Dialyzer errors, formatting checks, and an asset build. Browser checks used sample meetups in a separate preview database, on desktop and mobile. The 10,000-link test verifies persistence and the 50-job scheduling limit without contacting Campfire.
+Validation completed with 244 passing Elixir tests, nine JavaScript tests, zero Dialyzer errors, formatting checks, and an asset build. Browser checks used sample meetups in a separate preview database, on desktop and mobile. The 10,000-link test verifies persistence and the 50-job scheduling limit without contacting Campfire.
 
 Automated API tests use realistic mocked Campfire responses. A real import requires a currently valid token and an accessible meetup. Follow the [user guide](user-guide.md) for that manual check.
 
-Production needs your database, encryption key, host, application secret, and verified mail sender. Deployment itself is not part of this implementation.
+Docker runs a production release with persistent PostgreSQL and image volumes. The current setup serves HTTP on localhost:5000 and generates matching email links. SMTP delivers account emails through the configured mailbox. See the [deployment guide](deployment.md) for setup and backups.

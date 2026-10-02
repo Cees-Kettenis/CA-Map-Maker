@@ -1,14 +1,15 @@
-# My Community
+# My Communities
 
-Connect one Campfire group to your account. Its upcoming meetups are discovered
-in the background and added to a private map.
+Track multiple Campfire groups, then create a map of their meetups on a chosen day. Each group also keeps its own private map.
 
 ## Connect your group
 
 1. Save your [Campfire token](campfire-credentials.md) in **Settings**.
-2. Open **My Community**.
-3. Paste the group's invitation link or direct group link.
-4. Leave **Monitor for new meetups** enabled and select **Save community**.
+2. Open **My Communities**.
+3. Paste one group or invitation link per line and select **Track groups**.
+4. Select a group to manage its monitoring and private invitations.
+
+Adding more links preserves your existing groups, maps, and invitations. Repeated links are ignored. You can pause each group separately.
 
 Supported links include `https://campfire.onelink.me/...` invitations,
 `https://cmpf.re/...` short links that resolve to a group, and direct links such
@@ -16,20 +17,27 @@ as `https://campfire.nianticlabs.com/discover/clubs/...`. An invitation must
 identify a group, rather than an individual meetup. Your Campfire account must
 be able to access that group; saving a link does not join it for you.
 
-The first check runs in the background. Subsequent checks run every 10 minutes.
-Each check reads a page of up to 100 upcoming meetups. Large groups continue
-from the next page at the next check, then start over after the last page.
-New meetup links use the existing [import queue](imports.md), including its
-50-links-per-10-minutes limit across your maps.
+The first check fetches the community and its upcoming events. Subsequent checks run once a day. Each check follows all available pages of upcoming events.
 
-Meetup cards and map popups show square cover photos and the host's name and profile picture when Campfire provides them. Meetups sharing a location appear in one popup with the next meetup first.
+Use **Update now** for an immediate refresh. The update panel shows when data was last updated and when the next update is scheduled.
 
-Select **View import progress** to inspect source errors or retry imports. For meetups imported before cover photos were supported, select **Refresh all links** once to fetch their photos and host details.
-Discovery finds new meetups; use the map's refresh controls to update locations
-that have already been imported. Existing locations stay on the map after a
-meetup leaves Campfire's upcoming feed.
+Images are downloaded once per URL and served from local storage. Meetup cards and map popups show square cover photos and the host's name and profile picture when available. Meetups sharing a location appear in one popup with the next meetup first.
 
-## Invite people to your map
+Finished meetups leave map pins when their Campfire end time passes. They are hidden from meetup lists by default; select **Show past meetups** to see them again. Meetups without an end time remain visible.
+
+## Create a meetup map
+
+1. Open **My Maps** and choose **Communities** under **Make a new map**.
+2. Enter a name and select a date.
+3. Check the groups to include and select **Create meetup map**.
+
+The date covers the whole day using your browser's local time. Each map stays linked to its selected groups. New meetups appear as imports finish, and changed titles, locations, photos, and hosts update automatically. Events moved to another day leave that map. Duplicate meetups appear once.
+
+A new map may be empty while groups are still being discovered or imported. Open its linked communities to check progress and errors. **Update now** refreshes the selected events. Date maps read the community event records directly without copying them.
+
+Date maps start private. To share a date map publicly, use its **Edit map** and **Copy share link** controls. Group maps retain invitation-only sharing as described below.
+
+## Invite people to a group map
 
 1. Under **Private sharing**, enter the person's account email and select **Invite**.
 2. Select **Copy link** and send the community link to them.
@@ -51,8 +59,7 @@ meetup imports can still finish. Enable it again to resume checks.
 
 Changing the group link replaces the community map and clears its invitations.
 Invite people again and send the new map link. The old map link stops working.
-Deleting the community map from **My Maps** removes its locations; save the
-community settings again to create a replacement.
+Deleting a community or its group map stops monitoring, removes its invitations, and unlinks it from date maps. Add its link again to track it later.
 
 If a check fails, the message appears beside the group settings. Fix the link
 or replace your token as needed. Checks resume at the next interval. See

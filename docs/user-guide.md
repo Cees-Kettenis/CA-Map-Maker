@@ -8,6 +8,6 @@ Create a map from a few Campfire meetup links, then share it with your community
 4. **Share it.** Set the map to **Public**, then select **Copy share link**. Visitors can view it without an account. See [sharing maps](sharing-maps.md).
 5. **Export it if needed.** Select **Export KML** to download the locations for manual import into Google My Maps. See [KML exports](kml-exports.md).
 
-Start with a few meetups your Campfire account can access. Imports run in the background, with up to 50 links processed every 10 minutes across your maps. See [imports and refreshes](imports.md) for progress, retries, and cancellation.
+Start with a few meetups your Campfire account can access. Fetches run in the background, then communities and unfinished meetups update once a day. See [map updates](imports.md) for the schedule and **Update now**.
 
 If something goes wrong, check [troubleshooting](troubleshooting.md). Browse all guides in the [user guide index](README.md).
