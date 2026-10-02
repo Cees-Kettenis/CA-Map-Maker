@@ -157,6 +157,7 @@ defmodule CATools.CommunitiesTest do
           club: %{
             id: "club-123",
             name: "City Raiders",
+            avatarUrl: "https://cdn.example.com/group-icon.png",
             activeFeed: %{
               edges: Enum.map(ids, &%{node: %{id: &1}}),
               pageInfo: %{hasNextPage: more, endCursor: if(more, do: "next-page")}
@@ -167,17 +168,46 @@ defmodule CATools.CommunitiesTest do
     end)
 
     assert :ok = perform_job(CommunitySyncJob, %{community_id: community.id})
-    assert Communities.get(scope).cursor == "next-page"
-    assert Maps.get_map(scope, community.map_id).sources_count == 1
-    assert_enqueued(worker: CATools.Campfire.BatchScheduler, args: %{user_id: user.id})
-    assert {:error, :too_soon} = Communities.check_now(scope)
+    assert Communities.get(scope).cursor == nil
+
+    assert DateTime.diff(
+             Communities.get(scope).next_check_at,
+             Communities.get(scope).last_checked_at
+           ) == 86_400
+
+    assert Communities.get(scope).avatar_url == "https://cdn.example.com/group-icon.png"
+
+    assert_enqueued(
+      worker: CATools.Campfire.ImageCacheJob,
+      args: %{url: "https://cdn.example.com/group-icon.png"}
+    )
+
+    assert Maps.get_map(scope, community.map_id).sources_count == 2
     assert :ok = perform_job(CommunitySyncJob, %{community_id: community.id})
-    assert Repo.aggregate(MapSource, :count) == 1
+    assert Repo.aggregate(MapSource, :count) == 2
+    assert :ok = Communities.check_now(scope)
+    assert Communities.get(scope).next_check_at == nil
+    assert_enqueued(worker: CommunitySyncJob, args: %{community_id: community.id, force: true})
+    assert :ok = perform_job(CommunitySyncJob, %{community_id: community.id, force: true})
+    assert Maps.get_map(scope, community.map_id).name == "City Raiders"
+
+    existing_source =
+      Repo.get_by!(MapSource,
+        map_id: community.map_id,
+        original_url: "https://campfire.nianticlabs.com/discover/meetup/event-1"
+      )
+
+    Repo.update!(
+      Ecto.Changeset.change(existing_source,
+        status: :fetched,
+        last_fetched_at: DateTime.add(DateTime.utc_now(:second), -86_401)
+      )
+    )
+
     Repo.update_all(from(c in Community, where: c.id == ^community.id), set: [next_check_at: nil])
     assert :ok = perform_job(CommunitySyncJob, %{community_id: community.id})
-    assert Communities.get(scope).cursor == nil
-    assert Maps.get_map(scope, community.map_id).sources_count == 2
-    assert Maps.get_map(scope, community.map_id).name == "City Raiders"
+    assert Repo.get!(MapSource, existing_source.id).status == :pending
+    assert Repo.aggregate(MapSource, :count) == 2
   end
 
   test "a group change during discovery cannot add old-group meetups to the replacement map" do

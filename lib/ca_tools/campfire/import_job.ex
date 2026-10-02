@@ -21,8 +21,16 @@ defmodule CATools.Campfire.ImportJob do
     result = Importer.import_source(source_id)
 
     case result do
-      {:ok, %MapSource{} = source} -> CATools.Maps.refresh_batch(source.import_batch_id)
-      _ -> :ok
+      {:ok, %MapSource{} = source} ->
+        CATools.Maps.refresh_batch(source.import_batch_id)
+
+        case CATools.Repo.get(CATools.Maps.UserMap, source.map_id) do
+          nil -> :ok
+          map -> CATools.Maps.notify(map.user_id)
+        end
+
+      _ ->
+        :ok
     end
 
     case result do

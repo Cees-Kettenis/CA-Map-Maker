@@ -6,7 +6,7 @@ defmodule CATools.Maps.KML do
   @spec generate(UserMap.t(), boolean()) :: String.t()
   def generate(map, owner? \\ false) do
     points =
-      Enum.map(map.points, fn point ->
+      Enum.map(CATools.Maps.active_points(map.points), fn point ->
         description =
           [
             point.group_name,

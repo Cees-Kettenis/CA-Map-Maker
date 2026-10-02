@@ -9,6 +9,7 @@ defmodule CATools.Maps.UserMap do
 
   @type t :: %__MODULE__{
           id: integer() | nil,
+          image_id: String.t() | nil,
           user_id: integer() | nil,
           user: User.t() | Ecto.Association.NotLoaded.t(),
           name: String.t() | nil,
@@ -24,6 +25,7 @@ defmodule CATools.Maps.UserMap do
         }
 
   schema "maps" do
+    field :image_id, :string
     field :name, :string
     field :description, :string
     field :visibility, Ecto.Enum, values: [:private, :public]
@@ -32,7 +34,11 @@ defmodule CATools.Maps.UserMap do
     field :sources_count, :integer, default: 0
     field :last_imported_at, :utc_datetime
     field :source_urls_input, :string, virtual: true
+    field :meetup_date, :date
+    field :utc_offset_minutes, :integer, default: 0
 
+    field :community_icon_url, :string, virtual: true
+    has_one :community, CATools.Communities.Community, foreign_key: :map_id
     belongs_to :user, User
     has_many :batches, CATools.Maps.ImportBatch, foreign_key: :map_id
     has_many :sources, MapSource, foreign_key: :map_id
@@ -58,7 +64,8 @@ defmodule CATools.Maps.UserMap do
   @spec changeset(t(), map()) :: Ecto.Changeset.t()
   def changeset(map, attrs) do
     map
-    |> cast(attrs, [:name, :description, :visibility])
+    |> cast(attrs, [:name, :description, :visibility, :image_id])
+    |> validate_format(:image_id, ~r/\A[0-9a-f]{64}\z/)
     |> validate_required([:name, :visibility])
     |> validate_length(:name, max: 160)
     |> validate_length(:description, max: 2_000)

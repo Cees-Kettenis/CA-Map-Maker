@@ -26,6 +26,14 @@ defmodule CATools.MapManagementTest do
     assert Enum.map(Maps.point_data(map), & &1.id) == [4, 1, 5, 3, 2]
   end
 
+  test "end time determines finished status, including the exact end boundary" do
+    now = DateTime.utc_now(:second)
+    assert Maps.meetup_ended?(%{ends_at: now}, now)
+    assert Maps.meetup_ended?(%{ends_at: DateTime.add(now, -1)}, now)
+    refute Maps.meetup_ended?(%{ends_at: DateTime.add(now, 1)}, now)
+    refute Maps.meetup_ended?(%{ends_at: nil}, now)
+  end
+
   test "CRUD operations are owner scoped and changing visibility disables public access" do
     owner = user_scope_fixture()
     other = user_scope_fixture()

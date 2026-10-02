@@ -70,6 +70,28 @@ defmodule CATools.Campfire.MaintenanceJob do
       Oban.insert!(CATools.Campfire.CommunitySyncJob.new(%{"community_id" => id}))
     end)
 
+    cutoff = DateTime.add(now, -86_400, :second)
+
+    Repo.all(
+      from m in UserMap,
+        join: s in MapSource,
+        on: s.map_id == m.id,
+        left_join: c in CATools.Communities.Community,
+        on: c.map_id == m.id,
+        left_join: p in CATools.Maps.MapPoint,
+        on: p.map_source_id == s.id,
+        where:
+          is_nil(m.meetup_date) and (is_nil(c.id) or c.enabled) and
+            s.status in [:fetched, :failed, :skipped] and
+            fragment("GREATEST(?, ?)", s.last_fetched_at, s.updated_at) <= ^cutoff and
+            (is_nil(p.ends_at) or p.ends_at > ^now),
+        distinct: true,
+        preload: [:user]
+    )
+    |> Enum.each(fn map ->
+      CATools.Maps.refresh_map(CATools.Accounts.Scope.for_user(map.user), map.id, :stale)
+    end)
+
     :ok
   end
 end

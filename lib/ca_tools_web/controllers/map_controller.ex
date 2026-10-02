@@ -12,7 +12,11 @@ defmodule CAToolsWeb.MapController do
         conn |> put_status(:not_found) |> json(%{error: "Map not found"})
 
       map ->
-        json(conn, %{name: map.name, description: map.description, points: Maps.point_data(map)})
+        json(conn, %{
+          name: map.name,
+          description: map.description,
+          points: Maps.point_data(map) |> Maps.active_points()
+        })
     end
   end
 

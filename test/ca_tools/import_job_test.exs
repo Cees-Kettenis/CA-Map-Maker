@@ -36,6 +36,20 @@ defmodule CATools.Campfire.ImportJobTest do
         "source_urls_input" => "https://campfire.nianticlabs.com/discover/meetup/event-123"
       })
 
+    community =
+      Repo.insert!(%CATools.Communities.Community{
+        user_id: user.id,
+        map_id: map.id,
+        source_url: "https://campfire.nianticlabs.com/discover/clubs/city"
+      })
+
+    {:ok, linked_map} =
+      CATools.MeetupMaps.create(user_scope_fixture(user), %{
+        name: "Linked map",
+        meetup_date: "2026-10-02",
+        community_ids: [community.id]
+      })
+
     [source] = map.sources
 
     Req.Test.stub(__MODULE__, fn conn ->
@@ -83,6 +97,19 @@ defmodule CATools.Campfire.ImportJobTest do
     assert batch.status == :completed
     assert batch.processed_count == 1
     assert batch.success_count == 1
+    [linked_point] = CATools.Maps.get_map(user_scope_fixture(user), linked_map.id).points
+    assert linked_point.title == "Raid Hour"
+    assert linked_point.host_name == "Trainer Host"
+
+    assert_enqueued(
+      worker: CATools.Campfire.ImageCacheJob,
+      args: %{url: "https://cdn.example.com/cover.jpg"}
+    )
+
+    assert_enqueued(
+      worker: CATools.Campfire.ImageCacheJob,
+      args: %{url: "https://cdn.example.com/avatar.jpg"}
+    )
   end
 
   test "different source links to the same event produce one marker" do

@@ -77,7 +77,7 @@ defmodule CATools.Campfire.GraphQLClient do
     query = """
     query ActiveEvents_Query($clubId: ID!, $first: Int!, $after: String) {
       club(id: $clubId) {
-        id name
+        id name avatarUrl
         activeFeed(first: $first, after: $after) {
           edges { node { ... on Event { id } } }
           pageInfo { hasNextPage endCursor }
@@ -104,14 +104,15 @@ defmodule CATools.Campfire.GraphQLClient do
 
         %{
           "data" => %{
-            "club" => %{
-              "id" => ^club_id,
-              "name" => name,
-              "activeFeed" => %{
-                "edges" => edges,
-                "pageInfo" => %{"hasNextPage" => more, "endCursor" => next}
-              }
-            }
+            "club" =>
+              %{
+                "id" => ^club_id,
+                "name" => name,
+                "activeFeed" => %{
+                  "edges" => edges,
+                  "pageInfo" => %{"hasNextPage" => more, "endCursor" => next}
+                }
+              } = club
           }
         }
         when is_binary(name) and is_list(edges) and is_boolean(more) ->
@@ -125,7 +126,13 @@ defmodule CATools.Campfire.GraphQLClient do
             {:error,
              %{code: "invalid_response", message: "Campfire returned an invalid page cursor."}}
           else
-            {:ok, %{name: name, event_ids: Enum.uniq(ids), next_cursor: if(more, do: next)}}
+            {:ok,
+             %{
+               name: name,
+               avatar_url: CATools.Maps.ImageURL.normalize(club["avatarUrl"]),
+               event_ids: Enum.uniq(ids),
+               next_cursor: if(more, do: next)
+             }}
           end
 
         _ ->

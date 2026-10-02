@@ -25,8 +25,26 @@ defmodule CATools.Maps do
         UserMap
         |> where([map], map.user_id == ^user_id)
         |> order_by([map], desc: map.inserted_at)
-        |> preload([:sources, :batches])
+        |> preload([:sources, :batches, :community])
         |> Repo.all()
+        |> then(fn maps ->
+          images =
+            CATools.Maps.ImageCache.local_urls(
+              Enum.map(maps, &(&1.community && &1.community.avatar_url))
+            )
+
+          Enum.map(
+            Enum.map(maps, &CATools.MeetupMaps.load_events/1),
+            fn map ->
+              image =
+                if map.community,
+                  do: Map.get(images, map.community.avatar_url),
+                  else: image_url(map)
+
+              %{map | community_icon_url: image}
+            end
+          )
+        end)
 
       _ ->
         []
@@ -39,11 +57,12 @@ defmodule CATools.Maps do
   @spec get_map(Scope.t() | nil, term()) :: UserMap.t() | nil
   def get_map(scope, id) do
     case {authorized_user_id(scope), Ecto.Type.cast(:id, id)} do
-      {{:ok, user_id}, {:ok, map_id}} ->
+      {{:ok, user_id}, {:ok, map_id}} when is_integer(map_id) and map_id > 0 ->
         UserMap
         |> where([map], map.id == ^map_id and map.user_id == ^user_id)
-        |> preload([:sources, :points, :batches])
+        |> preload([:sources, :points, :batches, :community])
         |> Repo.one()
+        |> then(fn map -> if map, do: CATools.MeetupMaps.load_events(map) end)
 
       _ ->
         nil
@@ -104,6 +123,14 @@ defmodule CATools.Maps do
       :error -> {:error, :unauthorized}
       {:error, seconds} -> {:error, {:rate_limited, seconds}}
     end
+    |> then(fn result ->
+      case result do
+        {:ok, map} -> notify(map.user_id)
+        _ -> :ok
+      end
+
+      result
+    end)
   end
 
   @doc """
@@ -132,8 +159,24 @@ defmodule CATools.Maps do
     Repo.one(
       from m in UserMap,
         where: m.public_slug == ^slug and m.visibility == :public,
-        preload: [:points]
+        preload: [:points, :sources, :community]
     )
+    |> then(fn map -> if map, do: CATools.MeetupMaps.load_events(map) end)
+  end
+
+  @doc "Returns a locally stored group logo or uploaded image for a map."
+  @spec image_url(UserMap.t()) :: String.t() | nil
+  def image_url(map) do
+    case map.community do
+      %CATools.Communities.Community{avatar_url: avatar} ->
+        Map.get(CATools.Maps.ImageCache.local_urls([avatar]), avatar)
+
+      _ ->
+        case CATools.Maps.ImageCache.file(map.image_id) do
+          {:ok, _, _} -> "/media/meetups/#{map.image_id}"
+          :error -> nil
+        end
+    end
   end
 
   @doc "Returns a validated changeset for editing an owned map."
@@ -172,15 +215,57 @@ defmodule CATools.Maps do
 
         changeset |> Changeset.put_change(:public_slug, slug) |> Repo.update()
     end
+    |> then(fn result ->
+      case result do
+        {:ok, map} -> notify(map.user_id)
+        _ -> :ok
+      end
+
+      result
+    end)
   end
 
   @doc "Deletes an owned map, its sources, batches and points."
   @spec delete_map(Scope.t() | nil, term()) :: {:ok, UserMap.t()} | {:error, term()}
   def delete_map(scope, id) do
     case get_map(scope, id) do
-      nil -> {:error, :not_found}
-      map -> Repo.delete(map)
+      nil ->
+        {:error, :not_found}
+
+      map ->
+        Repo.transact(fn ->
+          Repo.query!("SELECT pg_advisory_xact_lock(73191, $1)", [map.user_id])
+          community = Repo.get_by(CATools.Communities.Community, map_id: map.id)
+
+          if community do
+            Repo.all(
+              from s in CATools.Maps.CommunitySelection,
+                where: s.community_id == ^community.id,
+                select: s.map_id
+            )
+          else
+            []
+          end
+
+          if community, do: Repo.delete!(community)
+
+          case Repo.delete(map) do
+            {:ok, deleted} ->
+              {:ok, deleted}
+
+            {:error, error} ->
+              Repo.rollback(error)
+          end
+        end)
     end
+    |> then(fn result ->
+      case result do
+        {:ok, map} -> notify(map.user_id)
+        _ -> :ok
+      end
+
+      result
+    end)
   end
 
   @doc "Queues failed or stale sources for another controlled import."
@@ -206,8 +291,15 @@ defmodule CATools.Maps do
                 from s in candidates, where: s.status in [:failed, :skipped]
 
               :stale ->
+                ended =
+                  from p in MapPoint,
+                    where: not is_nil(p.ends_at) and p.ends_at <= ^DateTime.utc_now(:second),
+                    select: p.map_source_id
+
                 from s in candidates,
-                  where: s.last_fetched_at < ^cutoff or is_nil(s.last_fetched_at)
+                  where:
+                    fragment("GREATEST(?, ?)", s.last_fetched_at, s.updated_at) <= ^cutoff and
+                      s.id not in subquery(ended)
 
               :all ->
                 candidates
@@ -239,6 +331,187 @@ defmodule CATools.Maps do
           %{"user_id" => map.user_id} |> BatchScheduler.new() |> Oban.insert!()
           {:ok, batch}
         end)
+    end
+  end
+
+  @doc "Notifies connected pages when this owner's maps change."
+  @spec notify(integer()) :: :ok
+  def notify(user_id), do: Phoenix.PubSub.broadcast(CATools.PubSub, "maps:#{user_id}", :refresh)
+
+  @doc "Subscribes a connected page to map and locally stored image changes."
+  @spec subscribe(integer()) :: :ok
+  def subscribe(user_id) do
+    Phoenix.PubSub.subscribe(CATools.PubSub, "maps:#{user_id}")
+  end
+
+  @doc "Queues an immediate owner-requested update without waiting for the daily schedule."
+  @spec request_update(Scope.t(), term()) :: :ok | {:error, term()}
+  def request_update(scope, id) do
+    case get_map(scope, id) do
+      nil ->
+        {:error, :not_found}
+
+      %UserMap{meetup_date: %Date{}} = map ->
+        sources_by_map = Enum.group_by(map.sources, & &1.map_id, & &1.id)
+
+        Enum.each(sources_by_map, fn {source_map, ids} ->
+          queue_sources_now(scope, source_map, ids)
+        end)
+
+        if map.sources == [] do
+          Enum.each(
+            CATools.MeetupMaps.communities(scope, id),
+            &CATools.Communities.check_now(scope, &1.id)
+          )
+        end
+
+        notify(scope.user.id)
+
+      map ->
+        case map.community do
+          %CATools.Communities.Community{} = c ->
+            CATools.Communities.check_now(scope, c.id)
+
+          _ ->
+            queue_sources_now(scope, map.id, Enum.map(map.sources, & &1.id))
+            notify(scope.user.id)
+        end
+    end
+  end
+
+  # Selecting existing source IDs lets linked maps refresh shared details only once.
+  defp queue_sources_now(scope, map_id, ids) do
+    Repo.transact(fn ->
+      Repo.query!("SELECT pg_advisory_xact_lock(73191, $1)", [scope.user.id])
+
+      sources =
+        Repo.all(
+          from s in MapSource,
+            where:
+              s.map_id == ^map_id and s.id in ^ids and s.status in [:fetched, :failed, :skipped],
+            lock: "FOR UPDATE"
+        )
+
+      if sources != [] do
+        batch =
+          Repo.insert!(
+            Changeset.change(%ImportBatch{},
+              user_id: scope.user.id,
+              map_id: map_id,
+              total_count: length(sources)
+            )
+          )
+
+        source_ids = Enum.map(sources, & &1.id)
+        cancel_source_jobs(source_ids)
+
+        Repo.update_all(from(s in MapSource, where: s.id in ^source_ids),
+          set: [
+            status: :pending,
+            import_batch_id: batch.id,
+            next_fetch_at: DateTime.utc_now(:second),
+            error_code: nil,
+            error_message: nil
+          ]
+        )
+      end
+
+      # Initial imports may already be waiting in the regular scheduler.
+      pending =
+        Repo.all(
+          from s in MapSource,
+            where: s.map_id == ^map_id and s.id in ^ids and s.status == :pending
+        )
+
+      pending_ids = Enum.map(pending, & &1.id)
+
+      Repo.update_all(from(s in MapSource, where: s.id in ^pending_ids),
+        set: [next_fetch_at: DateTime.utc_now(:second)]
+      )
+
+      Oban.retry_all_jobs(
+        from j in Oban.Job,
+          where:
+            j.worker == "CATools.Campfire.ImportJob" and j.state in ["scheduled", "retryable"] and
+              fragment("(?->>'source_id')::bigint", j.args) in ^pending_ids
+      )
+
+      Enum.each(pending, fn s -> Oban.insert!(ImportJob.new(%{"source_id" => s.id})) end)
+      {:ok, :queued}
+    end)
+  end
+
+  @doc "Returns the next automatic update time for a map."
+  @spec next_update_at(UserMap.t()) :: DateTime.t() | nil
+  def next_update_at(map) do
+    ended_ids =
+      case map.points do
+        points when is_list(points) ->
+          points |> Enum.filter(&meetup_ended?/1) |> Enum.map(& &1.map_source_id) |> MapSet.new()
+
+        _ ->
+          MapSet.new()
+      end
+
+    source_dates =
+      map.sources
+      |> Enum.reject(&MapSet.member?(ended_ids, &1.id))
+      |> Enum.map(fn source ->
+        timestamps = [source.last_fetched_at, source.updated_at] |> Enum.reject(&is_nil/1)
+
+        case Enum.max_by(timestamps, &DateTime.to_unix/1, fn -> nil end) do
+          nil -> nil
+          date -> DateTime.add(date, 86_400, :second)
+        end
+      end)
+
+    dates =
+      case {map.community, map.meetup_date} do
+        {%CATools.Communities.Community{enabled: true, next_check_at: next}, _} ->
+          [next | source_dates]
+
+        {%CATools.Communities.Community{}, _} ->
+          []
+
+        {_, %Date{}} ->
+          checks =
+            Repo.all(
+              from c in CATools.Communities.Community,
+                join: s in CATools.Maps.CommunitySelection,
+                on: s.community_id == c.id,
+                where: s.map_id == ^map.id and c.user_id == ^map.user_id and c.enabled,
+                select: c.next_check_at
+            )
+
+          checks ++ source_dates
+
+        _ ->
+          source_dates
+      end
+
+    dates |> Enum.reject(&is_nil/1) |> Enum.min_by(&DateTime.to_unix/1, fn -> nil end)
+  end
+
+  @doc "Schedules one page update when its next meetup ends, without database polling."
+  @spec schedule_expiry([map()], reference() | nil) :: reference() | nil
+  def schedule_expiry(points, previous \\ nil) do
+    if previous, do: Process.cancel_timer(previous)
+    now = DateTime.utc_now()
+
+    dates =
+      Enum.map(points, & &1.ends_at)
+      |> Enum.filter(&(match?(%DateTime{}, &1) and DateTime.compare(&1, now) == :gt))
+
+    case Enum.min_by(dates, &DateTime.to_unix/1, fn -> nil end) do
+      nil ->
+        nil
+
+      date ->
+        Process.send_after(
+          self(),
+          :refresh,
+          min(DateTime.diff(date, now, :millisecond) + 50, 4_294_967_295)
+        )
     end
   end
 
@@ -384,10 +657,29 @@ defmodule CATools.Maps do
     :ok
   end
 
+  @doc "Reports whether a meetup has finished using its Campfire end time. Unknown end times remain visible."
+  @spec meetup_ended?(map(), DateTime.t()) :: boolean()
+  def meetup_ended?(point, now \\ DateTime.utc_now()) do
+    case point.ends_at do
+      %DateTime{} = ends_at -> DateTime.compare(ends_at, now) != :gt
+      _ -> false
+    end
+  end
+
+  @doc "Returns only map points whose Campfire end time has not passed."
+  @spec active_points([map()], DateTime.t()) :: [map()]
+  def active_points(points, now \\ DateTime.utc_now()),
+    do: Enum.reject(points, &meetup_ended?(&1, now))
+
   @doc "Returns only safe marker metadata. Owner views may include source links."
   @spec point_data(UserMap.t(), boolean()) :: [map()]
   def point_data(map, owner? \\ false) do
     now = DateTime.utc_now()
+
+    images =
+      CATools.Maps.ImageCache.local_urls(
+        Enum.flat_map(map.points, &[&1.cover_photo_url, &1.host_avatar_url])
+      )
 
     map.points
     |> Enum.sort_by(fn point ->
@@ -420,8 +712,8 @@ defmodule CATools.Maps do
 
       data =
         data
-        |> Map.put(:cover_photo_url, CATools.Maps.ImageURL.normalize(point.cover_photo_url))
-        |> Map.put(:host_avatar_url, CATools.Maps.ImageURL.normalize(point.host_avatar_url))
+        |> Map.put(:cover_photo_url, Map.get(images, point.cover_photo_url))
+        |> Map.put(:host_avatar_url, Map.get(images, point.host_avatar_url))
 
       if owner?, do: Map.put(data, :source_url, point.source_url), else: data
     end)

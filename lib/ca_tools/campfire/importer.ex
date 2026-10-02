@@ -60,6 +60,7 @@ defmodule CATools.Campfire.Importer do
          {:ok, point_attrs} <-
            DataNormalizer.normalize_map_point(graphql_resource, resolved_source),
          {:ok, imported_source} <- persist_import(source, resolved_source, point_attrs) do
+      CATools.Maps.ImageCache.enqueue([point_attrs.cover_photo_url, point_attrs.host_avatar_url])
       {:ok, imported_source}
     else
       {:error, :not_found} ->

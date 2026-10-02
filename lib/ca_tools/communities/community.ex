@@ -1,5 +1,5 @@
 defmodule CATools.Communities.Community do
-  @moduledoc "An account's monitored Campfire group and private map."
+  @moduledoc "An account-owned monitored Campfire group and private map."
   use Ecto.Schema
   import Ecto.Changeset
   @type t :: %__MODULE__{}
@@ -10,6 +10,7 @@ defmodule CATools.Communities.Community do
     field :source_url, :string
     field :club_id, :string
     field :name, :string
+    field :avatar_url, :string
     field :enabled, :boolean, default: true
     field :cursor, :string
     field :last_checked_at, :utc_datetime
@@ -27,6 +28,7 @@ defmodule CATools.Communities.Community do
       |> cast(attrs, [:source_url, :enabled])
       |> validate_required([:source_url])
       |> validate_length(:source_url, max: 4_096)
+      |> unique_constraint([:user_id, :source_url])
 
     case CATools.Campfire.ClubResolver.validate_url(get_field(changeset, :source_url)) do
       {:ok, url} -> put_change(changeset, :source_url, url)
