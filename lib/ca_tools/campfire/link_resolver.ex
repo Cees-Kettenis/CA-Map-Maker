@@ -290,14 +290,16 @@ defmodule CATools.Campfire.LinkResolver do
     end
   end
 
-  defp ensure_public_destination(url, opts) do
+  @doc "Rejects remote destinations with missing DNS records or non-public addresses."
+  @spec ensure_public_destination(String.t(), keyword()) :: :ok | {:error, map()}
+  def ensure_public_destination(url, opts \\ []) do
     host = URI.parse(url).host || ""
 
     lookup = Keyword.get(opts, :dns_lookup, &resolve_host_addresses/1)
 
     case lookup.(host) do
       {:ok, addresses} ->
-        case Enum.all?(addresses, &public_ip_address?/1) do
+        case addresses != [] and Enum.all?(addresses, &public_ip_address?/1) do
           true ->
             :ok
 

@@ -21,6 +21,7 @@ defmodule CAToolsWeb.Router do
     pipe_through :browser
 
     get "/", PageController, :home
+    get "/media/meetups/:id", MeetupImageController, :show
     get "/maps/:slug/points", MapController, :public_points
     get "/maps/:slug/export.kml", MapController, :public_export
 

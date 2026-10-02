@@ -38,3 +38,13 @@ plan.md
 tasks.json
 
 .elixir_ls/
+
+# Locally cached Campfire images.
+/storage/
+
+# Deployment secrets and database backups.
+.env
+.env.*
+!.env.example
+!.env.docker.example
+*.dump

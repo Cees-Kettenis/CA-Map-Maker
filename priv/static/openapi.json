@@ -479,6 +479,58 @@
           }
         }
       }
+    },
+    "/media/meetups/{id}": {
+      "get": {
+        "operationId": "cachedMeetupImage",
+        "summary": "Read a locally cached meetup image",
+        "description": "Serves only saved files. Never fetches from Campfire on a page request.",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Cached raster image",
+            "content": {
+              "image/png": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              },
+              "image/jpeg": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              },
+              "image/gif": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              },
+              "image/webp": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Image unavailable"
+          }
+        }
+      }
     }
   },
   "components": {
@@ -527,9 +579,8 @@
           },
           "cover_photo_url": {
             "type": "string",
-            "format": "uri",
             "nullable": true,
-            "description": "HTTPS meetup cover image URL, when available."
+            "description": "Local cached image path, when available."
           },
           "host_name": {
             "type": "string",
@@ -538,9 +589,8 @@
           },
           "host_avatar_url": {
             "type": "string",
-            "format": "uri",
             "nullable": true,
-            "description": "HTTPS meetup creator profile image, when available."
+            "description": "Local cached image path, when available."
           }
         },
         "required": [

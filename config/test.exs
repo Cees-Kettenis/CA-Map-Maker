@@ -48,3 +48,5 @@ config :phoenix,
 
 # Exercise the temporary development-only batch control in tests.
 config :ca_tools, :temporary_force_fetch_enabled, true
+
+config :ca_tools, :image_storage_path, Path.join(System.tmp_dir!(), "ca_tools_test_images")
