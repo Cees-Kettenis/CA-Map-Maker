@@ -36,3 +36,9 @@ See [troubleshooting](troubleshooting.md) for other failures.
 Select **Cancel batch** and confirm to stop remaining imports. Locations
 already fetched stay on the map. Use **Retry failed links** to queue skipped
 sources again when you are ready.
+
+## Temporary development control
+
+In development, **Force fetch now** starts the selected batch immediately and
+bypasses the 10-minute wait. It only affects that batch and does not duplicate
+running imports. This temporary control is disabled in production.

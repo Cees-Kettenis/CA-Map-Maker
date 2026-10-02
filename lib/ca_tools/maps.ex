@@ -6,7 +6,7 @@ defmodule CATools.Maps do
   import Ecto.Query, warn: false
 
   alias CATools.Accounts.Scope
-  alias CATools.Campfire.{BatchScheduler, LinkResolver}
+  alias CATools.Campfire.{BatchScheduler, ImportJob, LinkResolver}
   alias CATools.Maps.{ImportBatch, MapPoint, MapSource, UserMap}
   alias CATools.RateLimiter
   alias CATools.Repo
@@ -239,6 +239,80 @@ defmodule CATools.Maps do
           %{"user_id" => map.user_id} |> BatchScheduler.new() |> Oban.insert!()
           {:ok, batch}
         end)
+    end
+  end
+
+  @doc "Reports whether the temporary development-only force-fetch control is enabled."
+  @spec force_fetch_enabled?() :: boolean()
+  def force_fetch_enabled? do
+    Application.get_env(
+      :ca_tools,
+      :temporary_force_fetch_enabled,
+      Application.get_env(:ca_tools, :dev_routes, false)
+    )
+  end
+
+  @doc "Starts the pending sources in an owned batch immediately, bypassing the temporary scheduling wait."
+  @spec force_fetch_batch(Scope.t() | nil, term(), term()) ::
+          {:ok, non_neg_integer()} | {:error, term()}
+  def force_fetch_batch(scope, map_id, batch_id) do
+    with true <- force_fetch_enabled?(),
+         %UserMap{} = map <- get_map(scope, map_id),
+         {:ok, id} <- Ecto.Type.cast(:id, batch_id) do
+      Repo.transact(fn ->
+        Repo.query!("SELECT pg_advisory_xact_lock(73191, $1)", [map.user_id])
+        batch = Repo.get_by(ImportBatch, id: id, map_id: map.id)
+
+        if is_nil(batch) or batch.status not in [:queued, :processing],
+          do: Repo.rollback(:not_pending)
+
+        sources =
+          Repo.all(
+            from s in MapSource,
+              where: s.import_batch_id == ^id and s.status == :pending,
+              lock: "FOR UPDATE"
+          )
+
+        ids = Enum.map(sources, & &1.id)
+
+        jobs =
+          from j in Oban.Job,
+            where:
+              j.worker == "CATools.Campfire.ImportJob" and
+                j.state in ["available", "scheduled", "executing", "retryable"],
+            where: fragment("(?->>'source_id')::bigint", j.args) in ^ids
+
+        existing_ids =
+          Repo.all(from j in jobs, select: fragment("(?->>'source_id')::bigint", j.args))
+          |> MapSet.new()
+
+        new_sources = Enum.reject(sources, &MapSet.member?(existing_ids, &1.id))
+        now = DateTime.utc_now(:second)
+
+        if ids != [] do
+          Repo.update_all(from(s in MapSource, where: s.id in ^ids),
+            set: [next_fetch_at: now, updated_at: now]
+          )
+
+          Repo.update!(Changeset.change(batch, status: :processing))
+
+          Repo.query!(
+            "INSERT INTO import_windows (user_id, scheduled_at) VALUES ($1, $2) ON CONFLICT (user_id) DO UPDATE SET scheduled_at = EXCLUDED.scheduled_at",
+            [map.user_id, DateTime.to_naive(now)]
+          )
+        end
+
+        {:ok, retried} =
+          Oban.retry_all_jobs(from j in jobs, where: j.state in ["scheduled", "retryable"])
+
+        inserted =
+          Enum.map(new_sources, &ImportJob.new(%{"source_id" => &1.id})) |> Oban.insert_all()
+
+        {:ok, length(inserted) + retried}
+      end)
+    else
+      false -> {:error, :disabled}
+      _ -> {:error, :not_found}
     end
   end
 

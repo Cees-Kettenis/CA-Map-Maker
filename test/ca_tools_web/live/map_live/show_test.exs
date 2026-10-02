@@ -5,6 +5,18 @@ defmodule CAToolsWeb.MapLive.ShowTest do
   import CATools.MapsFixtures
   alias CATools.Maps
 
+  test "temporary force-fetch button starts its selected batch", %{conn: conn} do
+    user = user_fixture()
+    map = map_fixture(user_scope_fixture(user))
+    {:ok, view, _} = conn |> log_in_user(user) |> live(~p"/dashboard/maps/#{map.id}")
+    assert has_element?(view, "button[phx-click='force_fetch_batch']", "Force fetch now")
+
+    assert view |> element("button[phx-click='force_fetch_batch']") |> render_click() =~
+             "2 imports started immediately."
+
+    assert CATools.Repo.get!(CATools.Maps.ImportBatch, hd(map.batches).id).status == :processing
+  end
+
   test "meetup cards display cover photos and export links are marked as downloads", %{conn: conn} do
     user = user_fixture()
     map = map_fixture(user_scope_fixture(user))

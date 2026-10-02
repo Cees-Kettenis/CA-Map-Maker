@@ -139,6 +139,13 @@ defmodule CAToolsWeb.MapLive.Show do
               class="text-xs underline"
               data-confirm="Stop the remaining imports in this batch?"
             >Cancel batch</button>
+            <button
+              :if={Maps.force_fetch_enabled?() and batch.status in [:queued, :processing]}
+              phx-click="force_fetch_batch"
+              phx-value-id={batch.id}
+              phx-disable-with="Starting..."
+              class="atlas-button"
+            >Force fetch now</button>
           </div>
           <div class="border-t border-base-300 pt-4 flex flex-col gap-2">
             <button phx-click="refresh" phx-value-mode="failed" class="atlas-button">Retry failed links</button><button
@@ -260,6 +267,25 @@ defmodule CAToolsWeb.MapLive.Show do
 
           _ ->
             {:noreply, put_flash(socket, :error, "Could not refresh this map.")}
+        end
+
+      "force_fetch_batch" ->
+        case Maps.force_fetch_batch(scope, id, params["id"]) do
+          {:ok, count} ->
+            map = Maps.get_map(scope, id)
+
+            message =
+              if count > 0,
+                do: "#{count} imports started immediately.",
+                else: "This batch is already running."
+
+            {:noreply,
+             socket
+             |> assign(map: map, points: Maps.point_data(map, true))
+             |> put_flash(:info, message)}
+
+          _ ->
+            {:noreply, put_flash(socket, :error, "Could not force this batch to run.")}
         end
 
       "cancel_batch" ->
