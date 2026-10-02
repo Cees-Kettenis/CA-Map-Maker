@@ -7,53 +7,22 @@ defmodule CATools.Campfire.GraphQLClient do
   alias CATools.Accounts.User
   alias CATools.Campfire.LinkResolver
 
-  @default_endpoint "https://campfire.nianticlabs.com/api/graphql"
+  @default_endpoint "https://niantic-social-api.nianticlabs.com/graphql"
   @default_timeout 20_000
 
   @resource_query """
   query CampfireMapSource($id: ID!) {
-    node(id: $id) {
-      __typename
+    event(id: $id) {
       id
-      ... on Event {
-        title
+      name
+      details
+      eventTime
+      eventEndTime
+      address
+      location
+      club {
+        id
         name
-        description
-        startTime
-        startsAt
-        endTime
-        endsAt
-        address
-        location {
-          latitude
-          longitude
-          address
-          lat
-          lng
-        }
-        group {
-          name
-        }
-      }
-      ... on Meetup {
-        title
-        name
-        description
-        startTime
-        startsAt
-        endTime
-        endsAt
-        address
-        location {
-          latitude
-          longitude
-          address
-          lat
-          lng
-        }
-        group {
-          name
-        }
       }
     }
   }
@@ -79,7 +48,7 @@ defmodule CATools.Campfire.GraphQLClient do
     with {:ok, credentials} <- Accounts.get_user_campfire_credentials(user),
          {:ok, token} <- extract_token(credentials),
          {:ok, response} <- request_resource(token, resolved_source, opts),
-         {:ok, resource} <- normalize_response_body(response.body, resolved_source) do
+         {:ok, resource} <- normalize_response_body(response.body, resolved_source, token) do
       {:ok, resource}
     else
       {:error, %{} = error_details} -> {:error, error_details}
@@ -122,9 +91,11 @@ defmodule CATools.Campfire.GraphQLClient do
         method: :post,
         url: endpoint(opts),
         auth: {:bearer, token},
+        headers: [{"accept", "application/json"}],
         json: body,
         receive_timeout: timeout(opts),
-        retry: false
+        retry: false,
+        redirect: false
       ] ++ request_options(opts)
 
     case Req.request(request) do
@@ -151,18 +122,22 @@ defmodule CATools.Campfire.GraphQLClient do
       {:error, %Req.TransportError{reason: :timeout}} ->
         {:error, %{code: "timeout", message: "Campfire GraphQL request timed out."}}
 
-      {:error, exception} ->
-        {:error, %{code: "network_error", message: Exception.message(exception)}}
+      {:error, _exception} ->
+        {:error,
+         %{code: "network_error", message: "Could not connect to Campfire. Try again later."}}
     end
   end
 
-  defp normalize_response_body(body, resolved_source) do
+  defp normalize_response_body(body, resolved_source, token) do
     case body do
       %{"errors" => [%{} | _] = errors} ->
         {:error,
          %{
            code: "graphql_error",
-           message: errors |> Enum.map_join("; ", &graphql_error_message/1)
+           message:
+             errors
+             |> Enum.map_join("; ", &graphql_error_message/1)
+             |> String.replace(token, "[REDACTED]")
          }}
 
       %{"data" => data} when is_map(data) ->
@@ -190,16 +165,7 @@ defmodule CATools.Campfire.GraphQLClient do
 
   defp extract_resource_node(data, resolved_source) do
     case data do
-      %{"node" => %{} = node} ->
-        node
-
-      %{"campfireResource" => %{} = resource} ->
-        resource
-
-      %{"meetup" => %{} = meetup} when resolved_source.resource_type == :meetup ->
-        meetup
-
-      %{"event" => %{} = event} when resolved_source.resource_type == :event ->
+      %{"event" => %{"id" => id} = event} when id == resolved_source.campfire_id ->
         event
 
       _ ->
@@ -214,15 +180,17 @@ defmodule CATools.Campfire.GraphQLClient do
     end
   end
 
-  defp credentials_error(:decryption_failed) do
-    %{
-      code: "credentials_decryption_failed",
-      message: "Saved Campfire credentials could not be decrypted."
-    }
-  end
+  defp credentials_error(reason) do
+    case reason do
+      :decryption_failed ->
+        %{
+          code: "credentials_decryption_failed",
+          message: "Saved Campfire credentials could not be decrypted."
+        }
 
-  defp credentials_error(:invalid_payload) do
-    %{code: "invalid_credentials", message: "Saved Campfire credentials are invalid."}
+      :invalid_payload ->
+        %{code: "invalid_credentials", message: "Saved Campfire credentials are invalid."}
+    end
   end
 
   defp endpoint(opts) do

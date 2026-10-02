@@ -33,6 +33,13 @@ oban_retry_queue_limit =
 oban_maintenance_queue_limit =
   String.to_integer(System.get_env("OBAN_MAINTENANCE_QUEUE_LIMIT", "2"))
 
+config :ca_tools, CATools.Campfire.GraphQLClient,
+  endpoint:
+    System.get_env(
+      "CAMPFIRE_GRAPHQL_ENDPOINT",
+      "https://niantic-social-api.nianticlabs.com/graphql"
+    )
+
 config :ca_tools, :runtime_secrets, credentials_master_key_base64: credentials_master_key_base64
 
 config :ca_tools, Oban,

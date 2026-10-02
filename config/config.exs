@@ -49,7 +49,7 @@ config :ca_tools, CATools.Campfire.LinkResolver,
   request_options: []
 
 config :ca_tools, CATools.Campfire.GraphQLClient,
-  endpoint: "https://campfire.nianticlabs.com/api/graphql",
+  endpoint: "https://niantic-social-api.nianticlabs.com/graphql",
   timeout: 20_000,
   request_options: []
 

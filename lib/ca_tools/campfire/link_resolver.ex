@@ -3,7 +3,7 @@ defmodule CATools.Campfire.LinkResolver do
   Normalizes and resolves supported Campfire source links.
   """
 
-  @allowed_hosts ["cmpf.re", "campfire.nianticlabs.com"]
+  @allowed_hosts ["cmpf.re", "campfire.nianticlabs.com", "niantic-social.nianticlabs.com"]
   @default_timeout 15_000
   @default_redirect_limit 5
 
@@ -50,7 +50,7 @@ defmodule CATools.Campfire.LinkResolver do
 
               normalized_host not in @allowed_hosts ->
                 {:error,
-                 "unsupported host #{host}. Only cmpf.re and campfire.nianticlabs.com are allowed."}
+                 "unsupported host #{host}. Only cmpf.re, campfire.nianticlabs.com and niantic-social.nianticlabs.com are allowed."}
 
               true ->
                 normalized_uri = %URI{
@@ -82,7 +82,8 @@ defmodule CATools.Campfire.LinkResolver do
   def resolve_source_url(url, opts \\ []) do
     with {:ok, normalized_url} <- normalize_source_url(url),
          {:ok, resolved_url} <- follow_redirects(normalized_url, redirect_limit(opts), opts),
-         {:ok, extracted} <- extract_resource_from_url(resolved_url) do
+         {:ok, extracted} <- extract_resource_from_url(resolved_url),
+         {:ok, extracted} <- resolve_public_event_id(extracted, resolved_url, opts) do
       {:ok, Map.put(extracted, :resolved_url, resolved_url)}
     else
       {:error, %{} = error_details} -> {:error, error_details}
@@ -99,21 +100,29 @@ defmodule CATools.Campfire.LinkResolver do
           | {:error, error_details()}
   def extract_resource_from_url(url) do
     with {:ok, normalized_url} <- normalize_source_url(url),
-         %URI{host: "campfire.nianticlabs.com", path: path} <- URI.parse(normalized_url),
+         %URI{host: host, path: path} <- URI.parse(normalized_url),
          path when is_binary(path) <- path do
-      case path |> String.trim("/") |> String.split("/", trim: true) do
-        ["discover", "meetups", campfire_id | _rest] when campfire_id != "" ->
+      segments = path |> String.trim("/") |> String.split("/", trim: true)
+
+      case {host, segments} do
+        {"campfire.nianticlabs.com", ["discover", kind, campfire_id]}
+        when kind in ["meetup", "meetups"] and campfire_id != "" ->
           {:ok, %{campfire_id: campfire_id, resource_type: :meetup}}
 
-        ["discover", "events", campfire_id | _rest] when campfire_id != "" ->
+        {"campfire.nianticlabs.com", ["discover", "events", campfire_id]}
+        when campfire_id != "" ->
           {:ok, %{campfire_id: campfire_id, resource_type: :event}}
+
+        {"niantic-social.nianticlabs.com", ["public", "meetup", map_object_id]}
+        when map_object_id != "" ->
+          {:ok, %{campfire_id: map_object_id, resource_type: :meetup}}
 
         _ ->
           {:error,
            %{
              code: "unsupported_path",
              message:
-               "Resolved Campfire URL must point to /discover/meetups/:id or /discover/events/:id."
+               "Resolved Campfire URL must point to a discover meetup/event or public meetup."
            }}
       end
     else
@@ -129,8 +138,79 @@ defmodule CATools.Campfire.LinkResolver do
     end
   end
 
+  # Public meetup URLs contain a map object ID, not the authenticated event ID.
+  defp resolve_public_event_id(extracted, resolved_url, opts) do
+    case URI.parse(resolved_url).host do
+      "niantic-social.nianticlabs.com" ->
+        query = """
+        query PublicMeetups_Query($ids: [ID!]!) {
+          publicMapObjectsById(ids: $ids) {
+            id
+            event { id }
+          }
+        }
+        """
+
+        request =
+          [
+            method: :post,
+            url: "https://niantic-social-api.nianticlabs.com/public/graphql",
+            json: %{query: query, variables: %{ids: [extracted.campfire_id]}},
+            receive_timeout: timeout(opts),
+            retry: false
+          ] ++ request_options(opts)
+
+        case Req.request(request) do
+          {:ok,
+           %Req.Response{status: 200, body: %{"data" => %{"publicMapObjectsById" => objects}}}}
+          when is_list(objects) ->
+            event_id =
+              Enum.find_value(objects, fn
+                %{"id" => id, "event" => %{"id" => event_id}}
+                when id == extracted.campfire_id and is_binary(event_id) and event_id != "" ->
+                  event_id
+
+                _ ->
+                  nil
+              end)
+
+            case event_id do
+              nil ->
+                {:error,
+                 %{code: "missing_resource", message: "Public Campfire meetup was not found."}}
+
+              id ->
+                {:ok, %{extracted | campfire_id: id}}
+            end
+
+          {:error, exception} ->
+            {:error, %{code: "network_error", message: Exception.message(exception)}}
+
+          _ ->
+            {:error,
+             %{
+               code: "public_lookup_failed",
+               message: "Could not resolve the public Campfire meetup to an event."
+             }}
+        end
+
+      _ ->
+        {:ok, extracted}
+    end
+  end
+
   defp follow_redirects(url, remaining_redirects, opts) do
-    case ensure_public_destination(url) do
+    # Known discover/public URLs already contain their ID. Like campfire-tools,
+    # only short URLs need a network redirect request.
+    case {extract_resource_from_url(url), URI.parse(url).host} do
+      {{:ok, _resource}, _host} -> {:ok, url}
+      {_, "cmpf.re"} -> request_redirect(url, remaining_redirects, opts)
+      {{:error, error}, _host} -> {:error, error}
+    end
+  end
+
+  defp request_redirect(url, remaining_redirects, opts) do
+    case ensure_public_destination(url, opts) do
       :ok ->
         request =
           [
@@ -197,10 +277,12 @@ defmodule CATools.Campfire.LinkResolver do
     end
   end
 
-  defp ensure_public_destination(url) do
+  defp ensure_public_destination(url, opts) do
     host = URI.parse(url).host || ""
 
-    case resolve_host_addresses(host) do
+    lookup = Keyword.get(opts, :dns_lookup, &resolve_host_addresses/1)
+
+    case lookup.(host) do
       {:ok, addresses} ->
         case Enum.all?(addresses, &public_ip_address?/1) do
           true ->
@@ -240,24 +322,58 @@ defmodule CATools.Campfire.LinkResolver do
     end
   end
 
-  defp public_ip_address?({127, _, _, _}), do: false
-  defp public_ip_address?({10, _, _, _}), do: false
-  defp public_ip_address?({0, _, _, _}), do: false
-  defp public_ip_address?({169, 254, _, _}), do: false
-  defp public_ip_address?({172, second, _, _}) when second in 16..31, do: false
-  defp public_ip_address?({192, 168, _, _}), do: false
-  defp public_ip_address?({192, 0, 0, _}), do: false
-  defp public_ip_address?({198, 18, _, _}), do: false
-  defp public_ip_address?({198, 19, _, _}), do: false
-  defp public_ip_address?({first, _, _, _}) when first in 224..239, do: false
-  defp public_ip_address?({_, _, _, _}), do: true
-  defp public_ip_address?({0, 0, 0, 0, 0, 0, 0, 1}), do: false
-  defp public_ip_address?({65152, _, _, _, _, _, _, _}), do: false
-  defp public_ip_address?({64512, _, _, _, _, _, _, _}), do: false
-  defp public_ip_address?({65024, _, _, _, _, _, _, _}), do: false
-  defp public_ip_address?({65280, _, _, _, _, _, _, _}), do: false
-  defp public_ip_address?({65535, _, _, _, _, _, _, _}), do: false
-  defp public_ip_address?({_, _, _, _, _, _, _, _}), do: true
+  defp public_ip_address?(address) do
+    case address do
+      {127, _, _, _} ->
+        false
+
+      {10, _, _, _} ->
+        false
+
+      {0, _, _, _} ->
+        false
+
+      {169, 254, _, _} ->
+        false
+
+      {172, second, _, _} when second in 16..31 ->
+        false
+
+      {192, 168, _, _} ->
+        false
+
+      {192, 0, 0, _} ->
+        false
+
+      {198, second, _, _} when second in [18, 19] ->
+        false
+
+      {first, _, _, _} when first >= 224 ->
+        false
+
+      {_, _, _, _} ->
+        true
+
+      {0, 0, 0, 0, 0, 0, 0, value} when value in [0, 1] ->
+        false
+
+      {0, 0, 0, 0, 0, 65535, high, low} ->
+        public_ip_address?(
+          {Bitwise.bsr(high, 8), Bitwise.band(high, 255), Bitwise.bsr(low, 8),
+           Bitwise.band(low, 255)}
+        )
+
+      {first, _, _, _, _, _, _, _}
+      when first in 64512..65023 or first in 65152..65215 or first >= 65280 ->
+        false
+
+      {_, _, _, _, _, _, _, _} ->
+        true
+
+      _ ->
+        false
+    end
+  end
 
   defp request_options(opts) do
     Keyword.get(

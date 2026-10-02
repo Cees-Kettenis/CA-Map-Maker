@@ -33,7 +33,7 @@ defmodule CATools.Campfire.DataNormalizer do
   def normalize_map_point(graphql_resource, resolved_source) do
     resource = graphql_resource.resource
     coordinates = coordinates(resource)
-    title = title(resource)
+    title = resource["name"] || resource["title"]
 
     with {:ok, latitude, longitude} <- normalize_coordinates(coordinates),
          {:ok, normalized_title} <- normalize_title(title) do
@@ -41,12 +41,14 @@ defmodule CATools.Campfire.DataNormalizer do
         campfire_id: graphql_resource.campfire_id,
         group_name: group_name(resource),
         title: normalized_title,
-        description: string_or_nil(resource["description"]),
+        description: string_or_nil(resource["details"] || resource["description"]),
         latitude: latitude,
         longitude: longitude,
         address: address(resource),
-        starts_at: datetime_or_nil(resource["startTime"] || resource["startsAt"]),
-        ends_at: datetime_or_nil(resource["endTime"] || resource["endsAt"]),
+        starts_at:
+          datetime_or_nil(resource["eventTime"] || resource["startTime"] || resource["startsAt"]),
+        ends_at:
+          datetime_or_nil(resource["eventEndTime"] || resource["endTime"] || resource["endsAt"]),
         source_url: resolved_source.resolved_url
       }
 
@@ -55,18 +57,47 @@ defmodule CATools.Campfire.DataNormalizer do
   end
 
   defp coordinates(resource) do
-    location = Map.get(resource, "location") || %{}
+    case resource["location"] do
+      location when is_binary(location) ->
+        # Campfire's scalar location uses longitude first, as in campfire-tools.
+        values =
+          case Jason.decode(location) do
+            {:ok, values} when is_list(values) ->
+              values
 
-    %{
-      latitude: location["latitude"] || location["lat"] || resource["latitude"],
-      longitude: location["longitude"] || location["lng"] || resource["longitude"]
-    }
+            _ ->
+              location
+              |> String.trim()
+              |> String.trim("[")
+              |> String.trim("]")
+              |> String.trim("(")
+              |> String.trim(")")
+              |> String.split(",")
+              |> Enum.map(&String.trim/1)
+          end
+
+        case values do
+          [longitude, latitude | _] -> %{latitude: latitude, longitude: longitude}
+          _ -> %{latitude: nil, longitude: nil}
+        end
+
+      location when is_map(location) ->
+        %{
+          latitude: location["latitude"] || location["lat"],
+          longitude: location["longitude"] || location["lng"]
+        }
+
+      _ ->
+        %{latitude: resource["latitude"], longitude: resource["longitude"]}
+    end
   end
 
   defp normalize_coordinates(%{latitude: latitude, longitude: longitude}) do
     case {float_or_nil(latitude), float_or_nil(longitude)} do
       {latitude_value, longitude_value}
-      when is_float(latitude_value) and is_float(longitude_value) ->
+      when is_float(latitude_value) and is_float(longitude_value) and
+             latitude_value >= -90 and latitude_value <= 90 and
+             longitude_value >= -180 and longitude_value <= 180 ->
         {:ok, latitude_value, longitude_value}
 
       _ ->
@@ -88,12 +119,9 @@ defmodule CATools.Campfire.DataNormalizer do
     end
   end
 
-  defp title(resource) do
-    resource["title"] || resource["name"]
-  end
-
   defp group_name(resource) do
     case resource do
+      %{"club" => %{"name" => name}} -> string_or_nil(name)
       %{"group" => %{"name" => name}} -> string_or_nil(name)
       %{"groupName" => name} -> string_or_nil(name)
       _ -> nil
@@ -118,16 +146,19 @@ defmodule CATools.Campfire.DataNormalizer do
   defp datetime_or_nil(value) do
     case value do
       %DateTime{} = datetime ->
-        datetime
+        DateTime.truncate(datetime, :second)
 
       string when is_binary(string) ->
         case DateTime.from_iso8601(string) do
-          {:ok, datetime, _offset} -> datetime
+          {:ok, datetime, _offset} -> DateTime.truncate(datetime, :second)
           _ -> nil
         end
 
       unix when is_integer(unix) ->
-        DateTime.from_unix!(unix)
+        case DateTime.from_unix(unix) do
+          {:ok, datetime} -> datetime
+          _ -> nil
+        end
 
       _ ->
         nil

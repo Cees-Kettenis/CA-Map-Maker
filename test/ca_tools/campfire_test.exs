@@ -10,6 +10,53 @@ defmodule CATools.CampfireTest do
   import CATools.MapsFixtures
 
   describe "LinkResolver.resolve_source_url/2" do
+    test "accepts the singular discover meetup path used by campfire-tools" do
+      assert {:ok, %{campfire_id: "event-123", resource_type: :meetup}} =
+               LinkResolver.extract_resource_from_url(
+                 "https://campfire.nianticlabs.com/discover/meetup/event-123"
+               )
+    end
+
+    test "resolves a public map object to its authenticated event ID" do
+      Req.Test.stub(__MODULE__.PublicResolverStub, fn conn ->
+        case {conn.host, conn.request_path} do
+          {"cmpf.re", "/public123"} ->
+            conn
+            |> Plug.Conn.put_resp_header(
+              "location",
+              "https://niantic-social.nianticlabs.com/public/meetup/map-object-123"
+            )
+            |> Plug.Conn.resp(302, "")
+
+          {"niantic-social.nianticlabs.com", "/public/meetup/map-object-123"} ->
+            Plug.Conn.resp(conn, 200, "")
+
+          {"niantic-social-api.nianticlabs.com", "/public/graphql"} ->
+            assert Plug.Conn.get_req_header(conn, "authorization") == []
+            {:ok, body, conn} = Plug.Conn.read_body(conn)
+            assert Jason.decode!(body)["variables"] == %{"ids" => ["map-object-123"]}
+
+            Req.Test.json(conn, %{
+              "data" => %{
+                "publicMapObjectsById" => [
+                  %{"id" => "map-object-123", "event" => %{"id" => "event-456"}}
+                ]
+              }
+            })
+        end
+      end)
+
+      assert {:ok, source} =
+               LinkResolver.resolve_source_url("https://cmpf.re/public123",
+                 request_options: [plug: {Req.Test, __MODULE__.PublicResolverStub}]
+               )
+
+      assert source.campfire_id == "event-456"
+
+      assert source.resolved_url ==
+               "https://niantic-social.nianticlabs.com/public/meetup/map-object-123"
+    end
+
     test "resolves a short link and extracts a meetup id" do
       Req.Test.stub(__MODULE__.ResolverStub, fn conn ->
         case {conn.host, conn.request_path} do
@@ -37,6 +84,45 @@ defmodule CATools.CampfireTest do
                campfire_id: "meetup-123",
                resource_type: :meetup
              }
+    end
+
+    test "rejects private IPv4, IPv6 and mapped IPv4 destinations before requesting" do
+      for address <- [
+            {127, 0, 0, 1},
+            {10, 0, 0, 1},
+            {192, 168, 1, 1},
+            {0, 0, 0, 0, 0, 0, 0, 1},
+            {64800, 0, 0, 0, 0, 0, 0, 1},
+            {0, 0, 0, 0, 0, 65535, 32512, 1}
+          ] do
+        assert {:error, %{code: "ssrf_blocked"}} =
+                 LinkResolver.resolve_source_url("https://cmpf.re/private",
+                   dns_lookup: fn _ -> {:ok, [address]} end
+                 )
+      end
+    end
+
+    test "limits redirect chains and rejects missing locations" do
+      Req.Test.stub(__MODULE__.LoopStub, fn conn ->
+        conn
+        |> Plug.Conn.put_resp_header("location", "https://cmpf.re/loop")
+        |> Plug.Conn.resp(302, "")
+      end)
+
+      assert {:error, %{code: "redirect_limit_exceeded"}} =
+               LinkResolver.resolve_source_url("https://cmpf.re/loop",
+                 redirect_limit: 2,
+                 dns_lookup: fn _ -> {:ok, [{8, 8, 8, 8}]} end,
+                 request_options: [plug: {Req.Test, __MODULE__.LoopStub}]
+               )
+
+      Req.Test.stub(__MODULE__.LoopStub, &Plug.Conn.resp(&1, 302, ""))
+
+      assert {:error, %{code: "missing_location"}} =
+               LinkResolver.resolve_source_url("https://cmpf.re/loop",
+                 dns_lookup: fn _ -> {:ok, [{8, 8, 8, 8}]} end,
+                 request_options: [plug: {Req.Test, __MODULE__.LoopStub}]
+               )
     end
 
     test "rejects redirects to unsupported hosts" do
@@ -74,22 +160,27 @@ defmodule CATools.CampfireTest do
 
       Req.Test.stub(__MODULE__.GraphQLStub, fn conn ->
         assert ["Bearer campfire-token"] == Plug.Conn.get_req_header(conn, "authorization")
-        assert conn.request_path == "/api/graphql"
+        assert conn.host == "niantic-social-api.nianticlabs.com"
+        assert conn.request_path == "/graphql"
+        {:ok, body, conn} = Plug.Conn.read_body(conn)
+        request = Jason.decode!(body)
+        assert request["variables"] == %{"id" => "meetup-123"}
+        assert request["operationName"] == "CampfireMapSource"
+        assert request["query"] == GraphQLClient.resource_query()
+        assert request["query"] =~ "event(id: $id)"
+        refute request["query"] =~ "node(id:"
 
         Req.Test.json(conn, %{
           "data" => %{
-            "node" => %{
+            "event" => %{
               "id" => "meetup-123",
-              "title" => "Community Raid Hour",
-              "description" => "Local meetup",
-              "startTime" => "2026-06-02T10:00:00Z",
-              "endTime" => "2026-06-02T11:00:00Z",
-              "location" => %{
-                "latitude" => 3.139,
-                "longitude" => 101.6869,
-                "address" => "Kuala Lumpur"
-              },
-              "group" => %{"name" => "Downtown Raiders"}
+              "name" => "Community Raid Hour",
+              "details" => "Local meetup",
+              "eventTime" => "2026-06-02T10:00:00Z",
+              "eventEndTime" => "2026-06-02T11:00:00Z",
+              "address" => "Kuala Lumpur",
+              "location" => "[101.6869,3.139]",
+              "club" => %{"name" => "Downtown Raiders"}
             }
           }
         })
@@ -108,7 +199,7 @@ defmodule CATools.CampfireTest do
 
       assert resource.campfire_id == "meetup-123"
       assert resource.resource_type == :meetup
-      assert resource.resource["title"] == "Community Raid Hour"
+      assert resource.resource["name"] == "Community Raid Hour"
     end
 
     test "returns graphql errors from the response body" do
@@ -145,7 +236,90 @@ defmodule CATools.CampfireTest do
     end
   end
 
+  describe "GraphQL response failures" do
+    test "handles rejected tokens, null events and mismatched IDs" do
+      user = user_fixture()
+
+      {:ok, user} =
+        Accounts.update_user_campfire_token(user, %{"campfire_token_input" => "saved-token"})
+
+      source = %{
+        resolved_url: "https://campfire.nianticlabs.com/discover/meetup/event-123",
+        campfire_id: "event-123",
+        resource_type: :meetup
+      }
+
+      for {status, body, code} <- [
+            {401, %{}, "unauthorized"},
+            {403, %{}, "forbidden"},
+            {200, %{"data" => %{"event" => nil}}, "missing_resource"},
+            {200, %{"data" => %{"event" => %{"id" => "other"}}}, "missing_resource"},
+            {200, %{"broken" => true}, "invalid_response"}
+          ] do
+        Req.Test.stub(__MODULE__.FailureStub, fn conn ->
+          Req.Test.json(%{conn | status: status}, body)
+        end)
+
+        assert {:error, %{code: ^code}} =
+                 GraphQLClient.fetch_resource(user, source,
+                   request_options: [plug: {Req.Test, __MODULE__.FailureStub}]
+                 )
+      end
+
+      Req.Test.stub(__MODULE__.FailureStub, fn conn ->
+        Req.Test.json(conn, %{"errors" => [%{"message" => "Rejected saved-token"}]})
+      end)
+
+      assert {:error, error} =
+               GraphQLClient.fetch_resource(user, source,
+                 request_options: [plug: {Req.Test, __MODULE__.FailureStub}]
+               )
+
+      refute error.message =~ "saved-token"
+    end
+  end
+
   describe "DataNormalizer.normalize_map_point/2" do
+    test "parses longitude first in JSON and comma-separated locations" do
+      for location <- ["[101.6869, 3.139]", "101.6869,3.139", "(101.6869, 3.139)"] do
+        assert {:ok, attrs} =
+                 DataNormalizer.normalize_map_point(
+                   %{
+                     campfire_id: "event-123",
+                     resource_type: :event,
+                     resource: %{"name" => "Meetup", "location" => location}
+                   },
+                   %{
+                     campfire_id: "event-123",
+                     resource_type: :event,
+                     resolved_url: "https://campfire.nianticlabs.com/discover/events/event-123"
+                   }
+                 )
+
+        assert attrs.latitude == 3.139
+        assert attrs.longitude == 101.6869
+        assert attrs.group_name == nil
+      end
+    end
+
+    test "rejects missing, malformed and out-of-range coordinates" do
+      for location <- [nil, "", "bad", "[101,91]", "[181,3]", "[null,3]", "[3]"] do
+        assert {:error, %{code: "missing_coordinates"}} =
+                 DataNormalizer.normalize_map_point(
+                   %{
+                     campfire_id: "event-123",
+                     resource_type: :event,
+                     resource: %{"name" => "Meetup", "location" => location}
+                   },
+                   %{
+                     campfire_id: "event-123",
+                     resource_type: :event,
+                     resolved_url: "https://campfire.nianticlabs.com/discover/events/event-123"
+                   }
+                 )
+      end
+    end
+
     test "normalizes a resource payload into map point attributes" do
       assert {:ok, attrs} =
                DataNormalizer.normalize_map_point(
@@ -153,16 +327,13 @@ defmodule CATools.CampfireTest do
                    campfire_id: "meetup-123",
                    resource_type: :meetup,
                    resource: %{
-                     "title" => "  Community Day  ",
-                     "description" => "Meet at the park",
-                     "startTime" => "2026-06-02T10:00:00Z",
-                     "endTime" => "2026-06-02T11:00:00Z",
-                     "location" => %{
-                       "latitude" => "3.139",
-                       "longitude" => "101.6869",
-                       "address" => "Kuala Lumpur"
-                     },
-                     "group" => %{"name" => "Trainers"}
+                     "name" => "  Community Day  ",
+                     "details" => "Meet at the park",
+                     "eventTime" => "2026-06-02T10:00:00Z",
+                     "eventEndTime" => "2026-06-02T11:00:00Z",
+                     "address" => "Kuala Lumpur",
+                     "location" => "[101.6869,3.139]",
+                     "club" => %{"name" => "Trainers"}
                    }
                  },
                  %{
@@ -184,7 +355,7 @@ defmodule CATools.CampfireTest do
   end
 
   describe "Importer.import_source/2" do
-    test "imports a source, stores a map point, and updates source status" do
+    test "imports a source, updates counters and can reimport without duplicates" do
       user =
         user_fixture()
         |> then(fn user ->
@@ -216,21 +387,18 @@ defmodule CATools.CampfireTest do
           {"campfire.nianticlabs.com", "/discover/meetups/meetup-789"} ->
             Plug.Conn.resp(conn, 200, "")
 
-          {"campfire.nianticlabs.com", "/api/graphql"} ->
+          {"niantic-social-api.nianticlabs.com", "/graphql"} ->
             Req.Test.json(conn, %{
               "data" => %{
-                "node" => %{
+                "event" => %{
                   "id" => "meetup-789",
-                  "title" => "Evening Meetup",
-                  "description" => "Bring lures",
-                  "startTime" => "2026-06-02T10:00:00Z",
-                  "endTime" => "2026-06-02T11:30:00Z",
-                  "location" => %{
-                    "latitude" => 3.139,
-                    "longitude" => 101.6869,
-                    "address" => "Central Park"
-                  },
-                  "group" => %{"name" => "City Raiders"}
+                  "name" => "Evening Meetup",
+                  "details" => "Bring lures",
+                  "eventTime" => "2026-06-02T10:00:00.123Z",
+                  "eventEndTime" => "2026-06-02T11:30:00Z",
+                  "address" => "Central Park",
+                  "location" => "[101.6869,3.139]",
+                  "club" => %{"name" => "City Raiders"}
                 }
               }
             })
@@ -256,6 +424,42 @@ defmodule CATools.CampfireTest do
       refreshed_map = Repo.get!(CATools.Maps.UserMap, map.id)
       assert refreshed_map.points_count == 1
       assert %DateTime{} = refreshed_map.last_imported_at
+
+      Req.Test.stub(CATools.Campfire.ImportJobTestStub, fn conn ->
+        case conn.request_path do
+          "/import123" ->
+            conn
+            |> Plug.Conn.put_resp_header(
+              "location",
+              "https://campfire.nianticlabs.com/discover/meetup/meetup-789"
+            )
+            |> Plug.Conn.resp(302, "")
+
+          "/discover/meetup/meetup-789" ->
+            Plug.Conn.resp(conn, 200, "")
+
+          "/graphql" ->
+            Req.Test.json(conn, %{
+              "data" => %{
+                "event" => %{
+                  "id" => "meetup-789",
+                  "name" => "Updated Meetup",
+                  "location" => "[101.6869,3.139]"
+                }
+              }
+            })
+        end
+      end)
+
+      assert point.starts_at == ~U[2026-06-02 10:00:00Z]
+
+      assert {:ok, _} =
+               Importer.import_source(source.id,
+                 request_options: [plug: {Req.Test, CATools.Campfire.ImportJobTestStub}]
+               )
+
+      assert Repo.aggregate(MapPoint, :count) == 1
+      assert Repo.get!(MapPoint, point.id).title == "Updated Meetup"
     end
   end
 end
