@@ -148,7 +148,7 @@ defmodule CAToolsWeb.MapLive.Show do
           data-target="#share_url"
           data-url={url(~p"/maps/#{@map.public_slug}")}
           class="atlas-button"
-        >Copy share link</button>
+        >Copy public link</button>
         <.link
           :if={@map.visibility == :public}
           href={~p"/maps/#{@map.public_slug}"}
@@ -156,7 +156,7 @@ defmodule CAToolsWeb.MapLive.Show do
           class="text-xs underline"
         >Open public map</.link>
         <button phx-click="toggle_sharing" class="atlas-button">
-          {if @map.visibility == :public, do: "Disable public link", else: "Enable public link"}
+          {if @map.visibility == :public, do: "Make private", else: "Make public"}
         </button>
       </section>
       <div class={["grid gap-6", @show_progress? && "xl:grid-cols-[1fr_300px]"]}>

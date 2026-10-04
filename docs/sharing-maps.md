@@ -3,8 +3,8 @@
 Public links work for maps created from meetup links, monitored communities, and maps assembled from communities for a chosen date. Maps start private unless you choose public visibility when creating them.
 
 1. Open your map from **My Maps**, or select **Manage public link** in **My Communities**.
-2. Under **Share map**, select **Enable public link**.
-3. Select **Copy share link** and send the link to your community.
+2. Under **Share map**, select **Make public**.
+3. Select **Copy public link** and send the link to your community.
 
 Anyone with the link can open the map without an account. Visitors can view the map and export KML, but cannot edit, delete, or trigger updates. Locations appear
 as imports finish. To check the public view, select **Open public map** or
@@ -26,7 +26,7 @@ meetup details before sharing them.
 
 ## Make a map private again
 
-Under **Share map**, select **Disable public link**. The public
+Under **Share map**, select **Make private**. The public
 page and its exports become unavailable. Your owner view remains accessible
 from **My Maps**.
 

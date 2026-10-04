@@ -43,13 +43,16 @@ defmodule CAToolsWeb.MapLive.ShowTest do
 
     for id <- [regular.id, community.map_id, date_map.id] do
       {:ok, owner, _} = conn |> log_in_user(user) |> live(~p"/dashboard/maps/#{id}")
-      assert has_element?(owner, "#map-sharing button", "Enable public link")
+      assert has_element?(owner, "#map-sharing button", "Make public")
       refute has_element?(owner, "#share_url")
 
       owner |> element("button[phx-click='toggle_sharing']") |> render_click()
       map = Maps.get_map(scope, id)
       assert map.visibility == :public
       assert has_element?(owner, "#share_url[value$='/maps/#{map.public_slug}']")
+      assert has_element?(owner, "#copy-share", "Copy public link")
+      assert has_element?(owner, "button[phx-click='toggle_sharing']", "Make private")
+      refute has_element?(owner, "button[phx-click='toggle_sharing']", "Make public")
 
       {:ok, public, html} = live(build_conn(), ~p"/maps/#{map.public_slug}")
       refute html =~ user.email
@@ -66,6 +69,8 @@ defmodule CAToolsWeb.MapLive.ShowTest do
       refute export =~ source.original_url
 
       owner |> element("button[phx-click='toggle_sharing']") |> render_click()
+      assert has_element?(owner, "button[phx-click='toggle_sharing']", "Make public")
+      refute has_element?(owner, "#copy-share")
       assert Maps.get_public_map(map.public_slug) == nil
       send(public.pid, :refresh)
       assert_redirect(public, ~p"/")
