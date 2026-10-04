@@ -68,8 +68,10 @@ defmodule CATools.CommunitiesTest do
     assert Maps.get_map(scope, community.map_id).visibility == :private
     assert Communities.get(user_scope_fixture()) == nil
     assert_enqueued(worker: CommunitySyncJob, args: %{community_id: community.id})
-    assert {:error, changeset} = Maps.update_map(scope, community.map_id, %{visibility: "public"})
-    assert "Community maps use invitation-only sharing." in errors_on(changeset).visibility
+    assert {:ok, public_map} = Maps.update_map(scope, community.map_id, %{visibility: "public"})
+    assert Maps.get_public_map(public_map.public_slug).id == community.map_id
+    assert {:ok, _} = Maps.update_map(scope, community.map_id, %{visibility: "private"})
+    assert Maps.get_public_map(public_map.public_slug) == nil
   end
 
   test "only invited confirmed accounts can view a community map and revocation removes access" do

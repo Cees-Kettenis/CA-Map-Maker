@@ -1,12 +1,12 @@
 # Sharing a map
 
-For invitation-only access to a monitored group map, use [My Communities](my-community.md). The steps below apply to maps created from individual meetup links.
+Public links work for maps created from meetup links, monitored communities, and maps assembled from communities for a chosen date. Maps start private unless you choose public visibility when creating them.
 
-1. Open your map and select **Edit map**.
-2. Set visibility to **Public** and save.
+1. Open your map from **My Maps**, or select **Manage public link** in **My Communities**.
+2. Under **Share map**, select **Enable public link**.
 3. Select **Copy share link** and send the link to your community.
 
-Anyone with the link can open the map without an account. Locations appear
+Anyone with the link can open the map without an account. Visitors can view the map and export KML, but cannot edit, delete, or trigger updates. Locations appear
 as imports finish. To check the public view, select **Open public map** or
 open the share link in a private browser window.
 
@@ -26,9 +26,11 @@ meetup details before sharing them.
 
 ## Make a map private again
 
-Select **Edit map**, change visibility to **Private**, and save. The public
+Under **Share map**, select **Disable public link**. The public
 page and its exports become unavailable. Your owner view remains accessible
 from **My Maps**.
+
+Community invitations remain separate. Disabling the public link preserves access for invited, signed-in accounts.
 
 Files someone has already downloaded remain with that person. See
 [KML exports](kml-exports.md) before sharing a downloaded file.

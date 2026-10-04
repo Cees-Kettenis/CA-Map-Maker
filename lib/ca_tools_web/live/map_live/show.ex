@@ -123,11 +123,18 @@ defmodule CAToolsWeb.MapLive.Show do
         </.form>
       </section>
       <section
-        :if={@map.visibility == :public}
+        id="map-sharing"
         class="atlas-card p-4 mb-7 flex flex-wrap items-center gap-3"
       >
-        <.icon name="hero-globe-alt" class="size-5" /><span class="text-xs font-semibold">Ready to share</span>
+        <.icon name="hero-globe-alt" class="size-5" /><span class="text-sm font-semibold">Share map</span>
+        <p class="text-sm opacity-70 w-full">
+          {if @map.visibility == :public,
+            do: "Anyone with this link can view this map without signing in. Only you can edit it.",
+            else:
+              "Enable a public link so anyone can view this map without signing in. Only you can edit it."}
+        </p>
         <input
+          :if={@map.visibility == :public}
           id="share_url"
           readonly
           aria-label="Public map link"
@@ -135,13 +142,22 @@ defmodule CAToolsWeb.MapLive.Show do
           class="input input-sm flex-1 min-w-40"
         />
         <button
+          :if={@map.visibility == :public}
           id="copy-share"
           phx-hook="CopyLink"
           data-target="#share_url"
           data-url={url(~p"/maps/#{@map.public_slug}")}
           class="atlas-button"
         >Copy share link</button>
-        <.link href={~p"/maps/#{@map.public_slug}"} target="_blank" class="text-xs underline">Open public map</.link>
+        <.link
+          :if={@map.visibility == :public}
+          href={~p"/maps/#{@map.public_slug}"}
+          target="_blank"
+          class="text-xs underline"
+        >Open public map</.link>
+        <button phx-click="toggle_sharing" class="atlas-button">
+          {if @map.visibility == :public, do: "Disable public link", else: "Enable public link"}
+        </button>
       </section>
       <div class={["grid gap-6", @show_progress? && "xl:grid-cols-[1fr_300px]"]}>
         <section class="atlas-card">
@@ -174,6 +190,26 @@ defmodule CAToolsWeb.MapLive.Show do
     id = socket.assigns.map.id
 
     case event do
+      "toggle_sharing" ->
+        visibility = if socket.assigns.map.visibility == :public, do: :private, else: :public
+
+        case Maps.update_map(scope, id, %{visibility: visibility}) do
+          {:ok, map} ->
+            {:noreply,
+             socket
+             |> assign(map: map, form: to_form(Maps.change_existing_map(map), as: "map"))
+             |> put_flash(
+               :info,
+               if(visibility == :public,
+                 do: "Public link enabled.",
+                 else: "Public link disabled."
+               )
+             )}
+
+          _ ->
+            {:noreply, put_flash(socket, :error, "Could not update map sharing.")}
+        end
+
       "update_now" ->
         Maps.request_update(scope, id)
         {:noreply, put_flash(socket, :info, "Update started.")}

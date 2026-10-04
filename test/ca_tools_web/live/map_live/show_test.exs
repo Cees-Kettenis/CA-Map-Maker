@@ -5,6 +5,75 @@ defmodule CAToolsWeb.MapLive.ShowTest do
   import CATools.MapsFixtures
   alias CATools.Maps
 
+  test "owners enable and revoke anonymous read-only links for regular and community maps", %{
+    conn: conn
+  } do
+    user = user_fixture()
+    scope = user_scope_fixture(user)
+    regular = map_fixture(scope)
+
+    {:ok, community} =
+      CATools.Communities.save(scope, %{
+        source_url: "https://campfire.nianticlabs.com/discover/clubs/sharing"
+      })
+
+    source =
+      CATools.Repo.insert!(%CATools.Maps.MapSource{
+        map_id: community.map_id,
+        original_url: "https://campfire.nianticlabs.com/discover/meetup/private-source",
+        status: :fetched
+      })
+
+    CATools.Repo.insert!(%CATools.Maps.MapPoint{
+      map_id: community.map_id,
+      map_source_id: source.id,
+      title: "Shared meetup",
+      source_url: source.original_url,
+      latitude: 3.139,
+      longitude: 101.6869,
+      starts_at: DateTime.utc_now(:second)
+    })
+
+    {:ok, date_map} =
+      CATools.MeetupMaps.create(scope, %{
+        name: "Shared date map",
+        meetup_date: Date.utc_today(),
+        community_ids: [community.id]
+      })
+
+    for id <- [regular.id, community.map_id, date_map.id] do
+      {:ok, owner, _} = conn |> log_in_user(user) |> live(~p"/dashboard/maps/#{id}")
+      assert has_element?(owner, "#map-sharing button", "Enable public link")
+      refute has_element?(owner, "#share_url")
+
+      owner |> element("button[phx-click='toggle_sharing']") |> render_click()
+      map = Maps.get_map(scope, id)
+      assert map.visibility == :public
+      assert has_element?(owner, "#share_url[value$='/maps/#{map.public_slug}']")
+
+      {:ok, public, html} = live(build_conn(), ~p"/maps/#{map.public_slug}")
+      refute html =~ user.email
+      refute html =~ source.original_url
+      if id != regular.id, do: assert(html =~ "Shared meetup")
+      assert has_element?(public, "#public-map")
+      refute has_element?(public, "button[phx-click='edit']")
+      refute has_element?(public, "button[phx-click='delete']")
+      refute has_element?(public, "button[phx-click='update_now']")
+      refute has_element?(public, "button[phx-click='toggle_sharing']")
+      assert {:error, :not_found} = Maps.update_map(user_scope_fixture(), id, %{name: "Changed"})
+
+      export = response(get(build_conn(), ~p"/maps/#{map.public_slug}/export.kml"), 200)
+      refute export =~ source.original_url
+
+      owner |> element("button[phx-click='toggle_sharing']") |> render_click()
+      assert Maps.get_public_map(map.public_slug) == nil
+      send(public.pid, :refresh)
+      assert_redirect(public, ~p"/")
+      assert response(get(build_conn(), ~p"/maps/#{map.public_slug}/points"), 404)
+      assert response(get(build_conn(), ~p"/maps/#{map.public_slug}/export.kml"), 404)
+    end
+  end
+
   test "update now starts pending links without displaying batches", %{conn: conn} do
     user = user_fixture()
     map = map_fixture(user_scope_fixture(user))
