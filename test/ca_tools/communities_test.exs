@@ -210,6 +210,56 @@ defmodule CATools.CommunitiesTest do
     assert Repo.aggregate(MapSource, :count) == 2
   end
 
+  test "single-page discovery queues the initial logo and a changed logo after saving them" do
+    original = Application.fetch_env!(:ca_tools, GraphQLClient)
+
+    Application.put_env(
+      :ca_tools,
+      GraphQLClient,
+      Keyword.put(original, :request_options, plug: {Req.Test, __MODULE__})
+    )
+
+    on_exit(fn -> Application.put_env(:ca_tools, GraphQLClient, original) end)
+
+    {:ok, user} =
+      Accounts.update_user_campfire_token(admin_user_fixture(), %{
+        "campfire_token_input" => "test-token"
+      })
+
+    scope = user_scope_fixture(user)
+
+    {:ok, community} =
+      Communities.save(scope, %{
+        source_url: "https://campfire.nianticlabs.com/discover/clubs/single-page"
+      })
+
+    for {logo, index} <- Enum.with_index(["initial", "updated"]) do
+      url = "https://cdn.example.com/#{logo}-logo.png"
+
+      Req.Test.stub(__MODULE__, fn conn ->
+        Req.Test.json(conn, %{
+          data: %{
+            club: %{
+              id: "single-page",
+              name: "Single-page community",
+              avatarUrl: url,
+              activeFeed: %{
+                edges: [],
+                pageInfo: %{hasNextPage: false, endCursor: nil}
+              }
+            }
+          }
+        })
+      end)
+
+      if index > 0, do: assert(:ok == Communities.check_now(scope, community.id))
+
+      assert :ok = perform_job(CommunitySyncJob, %{community_id: community.id})
+      assert Communities.get(scope, community.id).avatar_url == url
+      assert_enqueued(worker: CATools.Campfire.ImageCacheJob, args: %{url: url})
+    end
+  end
+
   test "a group change during discovery cannot add old-group meetups to the replacement map" do
     original = Application.fetch_env!(:ca_tools, GraphQLClient)
 

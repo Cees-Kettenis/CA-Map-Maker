@@ -111,6 +111,52 @@ defmodule CATools.Campfire.ImportJobTest do
       worker: CATools.Campfire.ImageCacheJob,
       args: %{url: "https://cdn.example.com/avatar.jpg"}
     )
+
+    body =
+      Base.decode64!(
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aV1sAAAAASUVORK5CYII="
+      )
+
+    Req.Test.stub(__MODULE__, fn conn ->
+      send(self(), {:image_download, conn.host, conn.request_path})
+
+      if conn.host == "cdn.example.com" do
+        conn
+        |> Plug.Conn.put_resp_header(
+          "location",
+          "https://storage.example.com#{conn.request_path}"
+        )
+        |> Plug.Conn.send_resp(307, "")
+      else
+        Plug.Conn.send_resp(conn, 200, body)
+      end
+    end)
+
+    for url <- [point.cover_photo_url, point.host_avatar_url] do
+      assert :error = CATools.Maps.ImageCache.file(CATools.Maps.ImageCache.key(url))
+
+      assert :ok =
+               CATools.Maps.ImageCache.fetch(url,
+                 require_reference: true,
+                 dns_lookup: fn _ -> {:ok, [{1, 1, 1, 1}]} end,
+                 request_options: [plug: {Req.Test, __MODULE__}]
+               )
+
+      path = URI.parse(url).path
+      assert_received {:image_download, "cdn.example.com", ^path}
+      assert_received {:image_download, "storage.example.com", ^path}
+
+      assert {:ok, _, "image/webp"} =
+               CATools.Maps.ImageCache.file(CATools.Maps.ImageCache.key(url))
+    end
+
+    [rendered] = CATools.Maps.point_data(CATools.Maps.get_map(user_scope_fixture(user), map.id))
+
+    assert rendered.cover_photo_url ==
+             "/media/meetups/#{CATools.Maps.ImageCache.key(point.cover_photo_url)}?v=2"
+
+    assert rendered.host_avatar_url ==
+             "/media/meetups/#{CATools.Maps.ImageCache.key(point.host_avatar_url)}?v=2"
   end
 
   test "different source links to the same event produce one marker" do

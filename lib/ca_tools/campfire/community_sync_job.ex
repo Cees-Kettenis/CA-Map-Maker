@@ -64,7 +64,6 @@ defmodule CATools.Campfire.CommunitySyncJob do
                  current.source_url == community.source_url do
               case result do
                 {:ok, club_id, page} ->
-                  CATools.Maps.ImageCache.enqueue([page.avatar_url])
                   now = DateTime.utc_now(:second)
                   map = Repo.get(UserMap, current.map_id)
 
@@ -176,6 +175,8 @@ defmodule CATools.Campfire.CommunitySyncJob do
                         error_message: nil
                       )
                     )
+
+                    CATools.Maps.ImageCache.enqueue([page.avatar_url])
                   end
 
                 {:error, details} ->
