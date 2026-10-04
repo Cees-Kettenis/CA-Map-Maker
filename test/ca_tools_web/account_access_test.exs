@@ -38,6 +38,12 @@ defmodule CAToolsWeb.AccountAccessTest do
     user = user_fixture()
     conn = log_in_user(conn, user)
     assert get(conn, ~p"/dashboard/users").status == 403
+
+    assert {:error, {:redirect, %{to: "/"}}} =
+             live_isolated(conn, CAToolsWeb.Admin.Users,
+               session: %{"user_token" => get_session(conn, :user_token)}
+             )
+
     {:ok, lv, html} = live(conn, ~p"/auth/users/settings")
     refute html =~ "/dashboard/users"
     refute html =~ "campfire_credentials_form"
@@ -49,6 +55,43 @@ defmodule CAToolsWeb.AccountAccessTest do
     })
 
     assert Repo.get!(Accounts.User, user.id).encrypted_credentials == nil
+  end
+
+  test "signed-in navigation shares a live session", %{
+    conn: conn
+  } do
+    conn = log_in_user(conn, admin_user_fixture())
+    {:ok, view, _} = live(conn, ~p"/dashboard/community")
+
+    for path <- [
+          ~p"/dashboard/maps",
+          ~p"/dashboard/users",
+          ~p"/auth/users/settings",
+          ~p"/dashboard/community"
+        ] do
+      route = Phoenix.Router.route_info(CAToolsWeb.Router, "GET", path, "localhost")
+      assert {_, _, _, %{name: :authenticated_maps}} = route.phoenix_live_view
+    end
+
+    {:ok, accounts, _} =
+      view
+      |> element("a[href='/dashboard/users']")
+      |> render_click()
+      |> follow_redirect(conn, ~p"/dashboard/users")
+
+    {:ok, settings, html} =
+      accounts
+      |> element("a[href='/auth/users/settings']")
+      |> render_click()
+      |> follow_redirect(conn, ~p"/auth/users/settings")
+
+    assert html =~ "Settings"
+
+    assert {:ok, _, _} =
+             settings
+             |> element("a.nav-link[href='/dashboard/community']")
+             |> render_click()
+             |> follow_redirect(conn, ~p"/dashboard/community")
   end
 
   test "admin creates a user by email and new user sets their password", %{conn: conn} do

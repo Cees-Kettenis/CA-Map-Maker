@@ -1,6 +1,7 @@
 defmodule CAToolsWeb.Admin.Users do
   @moduledoc "Administrator-only account creation."
   use CAToolsWeb, :live_view
+  on_mount {CAToolsWeb.Auth.UserAuth, :require_admin}
   alias CATools.Accounts
 
   @impl true

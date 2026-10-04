@@ -4,6 +4,34 @@ defmodule CAToolsWeb.CommunityLive.MultipleGroupsTest do
   import CATools.AccountsFixtures
   alias CATools.{Communities, Maps}
 
+  test "deleting the selected community allows deleting the next one without a reload", %{
+    conn: conn
+  } do
+    user = user_fixture()
+    scope = user_scope_fixture(user)
+
+    {:ok, [one, two]} =
+      Communities.add_links(
+        scope,
+        "https://campfire.nianticlabs.com/discover/clubs/one\nhttps://campfire.nianticlabs.com/discover/clubs/two"
+      )
+
+    {:ok, view, _} = conn |> log_in_user(user) |> live(~p"/dashboard/community")
+
+    for community <- [one, two] do
+      assert has_element?(view, "#delete-community-dialog[data-target-id='#{community.id}']")
+
+      view
+      |> element("#delete-community-dialog button[phx-click='delete_community']")
+      |> render_click()
+
+      refute has_element?(view, "nav button[phx-value-id='#{community.id}']")
+    end
+
+    assert Communities.list(scope) == []
+    refute has_element?(view, "#delete-community-dialog")
+  end
+
   test "paste groups, select one, then create a linked date map", %{conn: conn} do
     user = user_fixture()
     scope = user_scope_fixture(user)

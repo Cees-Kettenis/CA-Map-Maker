@@ -91,6 +91,7 @@ defmodule CAToolsWeb.MapComponents do
       id={@id}
       data-target-id={@target_id}
       phx-hook="ConfirmDialog"
+      phx-mounted={JS.ignore_attributes("open")}
       class="atlas-dialog"
       aria-labelledby={@id <> "-title"}
     >

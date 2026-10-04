@@ -79,26 +79,31 @@ defmodule CAToolsWeb.Router do
     delete "/users/log-out", UserSessionController, :delete
   end
 
-  scope "/", CAToolsWeb do
-    pipe_through [:browser, :require_authenticated_user]
+  live_session :authenticated_maps,
+    on_mount: [{CAToolsWeb.Auth.UserAuth, :require_authenticated}] do
+    scope "/", CAToolsWeb do
+      pipe_through [:browser, :require_authenticated_user]
 
-    get "/dashboard/maps/:id/export.kml", MapController, :owner_export
-    get "/community/maps/:id/export.kml", MapController, :community_export
+      get "/dashboard/maps/:id/export.kml", MapController, :owner_export
+      get "/community/maps/:id/export.kml", MapController, :community_export
 
-    live_session :authenticated_maps,
-      on_mount: [{CAToolsWeb.Auth.UserAuth, :require_authenticated}] do
       live "/dashboard/community", CommunityLive.Index, :index
       live "/community/maps/:id", MapLive.Public, :community
       live "/dashboard/maps", MapLive.Index, :index
       live "/dashboard/maps/:id", MapLive.Show, :show
     end
-  end
 
-  scope "/", CAToolsWeb do
-    pipe_through [:browser, :require_authenticated_user, :require_admin]
+    scope "/", CAToolsWeb do
+      pipe_through [:browser, :require_authenticated_user, :require_admin]
 
-    live_session :admin_accounts, on_mount: [{CAToolsWeb.Auth.UserAuth, :require_admin}] do
       live "/dashboard/users", Admin.Users, :index
+    end
+
+    scope "/auth", CAToolsWeb.Auth do
+      pipe_through [:browser, :require_authenticated_user]
+
+      live "/users/settings", UserLive.Settings, :edit
+      live "/users/settings/confirm-email/:token", UserLive.Settings, :confirm_email
     end
   end
 
@@ -106,12 +111,6 @@ defmodule CAToolsWeb.Router do
 
   scope "/auth", CAToolsWeb.Auth do
     pipe_through [:browser, :require_authenticated_user]
-
-    live_session :require_authenticated_user,
-      on_mount: [{CAToolsWeb.Auth.UserAuth, :require_authenticated}] do
-      live "/users/settings", UserLive.Settings, :edit
-      live "/users/settings/confirm-email/:token", UserLive.Settings, :confirm_email
-    end
 
     post "/users/update-password", UserSessionController, :update_password
   end
