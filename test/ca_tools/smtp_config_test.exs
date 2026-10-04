@@ -1,7 +1,7 @@
 defmodule CATools.SMTPConfigTest do
   use ExUnit.Case, async: false
 
-  @runtime_env ~w(SMTP_HOST SMTP_PORT SMTP_SECURITY SMTP_USERNAME SMTP_PASSWORD MAIL_FROM PHX_HOST PUBLIC_PORT PORT DATABASE_URL SECRET_KEY_BASE CREDENTIALS_MASTER_KEY_BASE64)
+  @runtime_env ~w(SMTP_HOST SMTP_PORT SMTP_SECURITY SMTP_USERNAME SMTP_PASSWORD MAIL_FROM PHX_HOST PUBLIC_SCHEME PUBLIC_PORT PORT DATABASE_URL SECRET_KEY_BASE CREDENTIALS_MASTER_KEY_BASE64)
 
   setup do
     previous = Map.new(@runtime_env, &{&1, System.get_env(&1)})
@@ -16,7 +16,7 @@ defmodule CATools.SMTPConfigTest do
       "CREDENTIALS_MASTER_KEY_BASE64" => Base.encode64(:binary.copy(<<0>>, 32))
     })
 
-    Enum.each(~w(PHX_HOST PUBLIC_PORT PORT), &System.delete_env/1)
+    Enum.each(~w(PHX_HOST PUBLIC_SCHEME PUBLIC_PORT PORT), &System.delete_env/1)
     System.delete_env("SMTP_PORT")
     System.delete_env("SMTP_SECURITY")
 
@@ -104,5 +104,22 @@ defmodule CATools.SMTPConfigTest do
     System.put_env("PUBLIC_PORT", "5006")
     config = Config.Reader.read!("config/runtime.exs", env: :prod, target: :host)
     assert config[:ca_tools][CAToolsWeb.Endpoint][:url][:port] == 5006
+  end
+
+  test "public HTTPS URL is independent of the internal HTTP port" do
+    System.put_env(%{
+      "PHX_HOST" => "cameetup.curious-code.fyi",
+      "PUBLIC_SCHEME" => "https",
+      "PUBLIC_PORT" => "443",
+      "PORT" => "5000"
+    })
+
+    config = Config.Reader.read!("config/runtime.exs", env: :prod, target: :host)
+    endpoint = config[:ca_tools][CAToolsWeb.Endpoint]
+
+    assert endpoint[:http][:port] == 5000
+    assert endpoint[:url] == [host: "cameetup.curious-code.fyi", port: 443, scheme: "https"]
+
+    assert URI.to_string(struct!(URI, endpoint[:url])) == "https://cameetup.curious-code.fyi"
   end
 end

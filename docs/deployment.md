@@ -28,7 +28,7 @@ Other providers can use their SMTP host and credentials. Both STARTTLS on port 5
 
 Public signup is disabled. On a fresh database, opening the site redirects to **Set up your administrator**. Enter your email, follow the single-use password setup link, and choose a password of at least 12 characters. The app remains on setup until the password is saved, then signs you in and opens Settings to configure the shared Campfire token.
 
-SMTP credentials must already be configured in `.env.docker`; production refuses to start without them. Set `PHX_HOST` to the Pi's address or hostname and `APP_PORT` to the port users can reach so email links open the correct site. For access over Tailscale, set `PHX_HOST=100.70.128.90`, `APP_BIND_ADDRESS=100.70.128.90`, and `APP_PORT=5000`.
+SMTP credentials must already be configured in `.env.docker`; production refuses to start without them. Set `PHX_HOST` to the Pi's address or hostname and `APP_PORT` to the port users can reach so email links open the correct site. For access over Tailscale, set `PHX_HOST=100.70.128.90` and `APP_PORT=5000`.
 
 Failed email delivery rolls back account creation. A pending setup keeps the selected admin email and offers **Request a new link** if the original expires after one hour. Once any existing installation is ready, setup closes. Restoring your existing database preserves your accounts and passwords and skips first-run setup.
 
@@ -56,7 +56,18 @@ docker compose --env-file .env.docker logs -f app
 
 Open `http://localhost:5000`. Email and sharing links use that same address. If you change `APP_PORT`, generated links include the new port. Previously sent emails keep their original URLs; request a new email after changing the address.
 
-The application binds to loopback by default. Set `APP_BIND_ADDRESS` to the host's Tailscale IP to allow access from your tailnet. PostgreSQL is not exposed. HTTPS and the Caddy proxy are disabled for now.
+Compose publishes the application's HTTP port on all host interfaces, including the host's Tailscale IP. PostgreSQL is not exposed. HTTPS is handled by an external reverse proxy when configured.
+
+When Nginx serves HTTPS and forwards requests to the app on port 5000, set these values in `.env.docker`:
+
+```dotenv
+PHX_HOST=cameetup.curious-code.fyi
+PUBLIC_SCHEME=https
+PUBLIC_PORT=443
+APP_PORT=5000
+```
+
+Rebuild and recreate the app with `docker compose --env-file .env.docker up -d --build --wait app`. New email and sharing links use `https://cameetup.curious-code.fyi` without a port number. Request a new email after updating; existing emails retain their old links.
 
 Database migrations run before the application starts. The application runs as an unprivileged user. The final Alpine image contains the compiled release and runtime libraries; build tools and source files stay in the build stage.
 
@@ -99,7 +110,7 @@ Keep the previous `CREDENTIALS_MASTER_KEY_BASE64` to decrypt existing saved Camp
 
 ## Configuration
 
-The runtime also supports `POOL_SIZE`, `CAMPFIRE_GRAPHQL_ENDPOINT`, `MAP_TILE_URL`, and the Oban queue limits. For a deployment with your own database or reverse proxy, run the same image with `DATABASE_URL`, `SECRET_KEY_BASE`, `CREDENTIALS_MASTER_KEY_BASE64`, `PHX_HOST`, `SMTP_HOST`, `SMTP_USERNAME`, `SMTP_PASSWORD`, and `MAIL_FROM`, and mount a writable persistent directory at `/app/storage/meetup_images`. Set `PUBLIC_PORT` to the host HTTP port when running outside Compose.
+The runtime also supports `POOL_SIZE`, `CAMPFIRE_GRAPHQL_ENDPOINT`, `MAP_TILE_URL`, and the Oban queue limits. For a deployment with your own database or reverse proxy, run the same image with `DATABASE_URL`, `SECRET_KEY_BASE`, `CREDENTIALS_MASTER_KEY_BASE64`, `PHX_HOST`, `SMTP_HOST`, `SMTP_USERNAME`, `SMTP_PASSWORD`, and `MAIL_FROM`, and mount a writable persistent directory at `/app/storage/meetup_images`. Set `PUBLIC_SCHEME` and `PUBLIC_PORT` to the scheme and port users reach. These default to `http` and the app's HTTP port.
 
 Leaflet is bundled locally. OpenStreetMap remains the default tile provider; use an appropriate provider for your traffic and follow its [tile usage policy](https://operations.osmfoundation.org/policies/tiles/).
 

@@ -169,7 +169,7 @@ if config_env() == :prod do
     url: [
       host: host,
       port: String.to_integer(System.get_env("PUBLIC_PORT", System.get_env("PORT", "5000"))),
-      scheme: "http"
+      scheme: System.get_env("PUBLIC_SCHEME", "http")
     ],
     http: [
       # Enable IPv6 and bind on all interfaces.

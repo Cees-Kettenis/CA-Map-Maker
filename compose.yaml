@@ -33,7 +33,8 @@ services:
       SMTP_PASSWORD: ${SMTP_PASSWORD:?Set SMTP_PASSWORD in .env.docker}
       MAIL_FROM: ${MAIL_FROM:?Set MAIL_FROM in .env.docker}
       PHX_HOST: ${PHX_HOST:-localhost}
-      PUBLIC_PORT: ${APP_PORT:-5000}
+      PUBLIC_PORT: ${PUBLIC_PORT:-${APP_PORT:-5000}}
+      PUBLIC_SCHEME: ${PUBLIC_SCHEME:-http}
       PORT: "5000"
       POOL_SIZE: ${POOL_SIZE:-10}
       CAMPFIRE_GRAPHQL_ENDPOINT: ${CAMPFIRE_GRAPHQL_ENDPOINT:-https://niantic-social-api.nianticlabs.com/graphql}
@@ -43,7 +44,7 @@ services:
       OBAN_IMPORT_QUEUE_LIMIT: ${OBAN_IMPORT_QUEUE_LIMIT:-10}
       OBAN_MAINTENANCE_QUEUE_LIMIT: ${OBAN_MAINTENANCE_QUEUE_LIMIT:-2}
     ports:
-      - "${APP_BIND_ADDRESS:-127.0.0.1}:${APP_PORT:-5000}:5000"
+      - "${APP_PORT:-5000}:5000"
     volumes:
       - images:/app/storage/meetup_images
 
