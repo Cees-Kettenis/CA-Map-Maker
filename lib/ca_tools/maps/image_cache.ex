@@ -540,7 +540,16 @@ defmodule CATools.Maps.ImageCache do
     remaining = Keyword.get(opts, :redirects_left, 5)
 
     if remaining > 0 do
-      fetch(target, Keyword.merge(opts, redirects_left: remaining - 1, revive_expired: true))
+      # The original URL's reference was checked under the storage lock. Redirect
+      # destinations belong to that image but are not stored on meetup records.
+      fetch(
+        target,
+        Keyword.merge(opts,
+          redirects_left: remaining - 1,
+          revive_expired: true,
+          require_reference: false
+        )
+      )
 
       with {:ok, path, _type} <- file(key(target)), {:ok, body} <- File.read(path) do
         cached = Repo.get!(CachedImage, key(target))

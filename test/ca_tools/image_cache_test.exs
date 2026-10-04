@@ -37,6 +37,21 @@ defmodule CATools.ImageCacheTest do
     origin = "https://cdn.example.com/origin-#{nonce}"
     target = "https://storage.example.com/target-#{nonce}.png"
 
+    scope = CATools.AccountsFixtures.user_scope_fixture()
+    map = CATools.MapsFixtures.map_fixture(scope)
+
+    CATools.Repo.insert!(%CATools.Maps.MapPoint{
+      map_id: map.id,
+      map_source_id: hd(map.sources).id,
+      latitude: 3.0,
+      longitude: 101.0,
+      title: "Redirected image",
+      cover_photo_url: origin
+    })
+
+    assert ImageCache.referenced_url?(origin)
+    refute ImageCache.referenced_url?(target)
+
     body =
       Base.decode64!(
         "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aV1sAAAAASUVORK5CYII="
@@ -54,6 +69,8 @@ defmodule CATools.ImageCacheTest do
       dns_lookup: fn _ -> {:ok, [{1, 1, 1, 1}]} end,
       request_options: [plug: {Req.Test, __MODULE__}]
     ]
+
+    opts = Keyword.put(opts, :require_reference, true)
 
     ImageCache.fetch(origin, opts)
     assert_received {:download, "cdn.example.com"}
