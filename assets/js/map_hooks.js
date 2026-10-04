@@ -106,12 +106,23 @@ export const CopyLink = {
     this.el.addEventListener('click', async () => {
       try {
         await navigator.clipboard.writeText(this.el.dataset.url)
-        this.el.textContent = 'Link copied'
-        setTimeout(() => { if (this.el.isConnected) this.el.textContent = label }, 2000)
       } catch {
-        const field = document.querySelector(this.el.dataset.target)
-        if (field) { field.focus(); field.select() }
+        const field = this.el.dataset.target && document.querySelector(this.el.dataset.target)
+        if (field) { field.focus(); field.select(); return }
+
+        const temporary = document.createElement('textarea')
+        temporary.value = this.el.dataset.url
+        temporary.style.cssText = 'position:fixed;left:-9999px'
+        document.body.appendChild(temporary)
+        temporary.select()
+        try {
+          if (!document.execCommand('copy')) return
+        } finally {
+          temporary.remove()
+        }
       }
+      this.el.textContent = 'Link copied'
+      setTimeout(() => { if (this.el.isConnected) this.el.textContent = label }, 2000)
     })
   },
 }

@@ -1,6 +1,44 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import {AtlasMap} from '../../assets/js/map_hooks.js'
+import {AtlasMap, CopyLink} from '../../assets/js/map_hooks.js'
+
+test('public link buttons copy without a visible URL field, including the clipboard fallback', async () => {
+  const previousNavigator = Object.getOwnPropertyDescriptor(globalThis, 'navigator')
+  const previousDocument = globalThis.document
+
+  try {
+    for (const clipboardAvailable of [true, false]) {
+      const url = 'https://example.com/maps/shared-map'
+      let copied
+      let temporary
+      const handlers = {}
+      const el = {textContent: 'Copy public link', dataset: {url}, isConnected: false,
+        addEventListener(event, handler) { handlers[event] = handler }}
+
+      Object.defineProperty(globalThis, 'navigator', {configurable: true, value: {
+        clipboard: {async writeText(value) {
+          if (!clipboardAvailable) throw new Error('Clipboard unavailable')
+          copied = value
+        }},
+      }})
+      globalThis.document = {
+        createElement() { return {style: {}, select() {}, remove() { temporary = null }} },
+        body: {appendChild(field) { temporary = field }},
+        execCommand(command) { assert.equal(command, 'copy'); copied = temporary.value; return true },
+      }
+
+      CopyLink.mounted.call({el})
+      await handlers.click()
+      assert.equal(copied, url)
+      assert.equal(el.textContent, 'Link copied')
+      assert.ok(!temporary)
+    }
+  } finally {
+    if (previousNavigator) Object.defineProperty(globalThis, 'navigator', previousNavigator)
+    else delete globalThis.navigator
+    globalThis.document = previousDocument
+  }
+})
 
 function renderMarkers(points) {
   const markers = []

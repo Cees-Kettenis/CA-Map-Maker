@@ -70,6 +70,16 @@ defmodule CAToolsWeb.MapLive.Show do
           ><.icon name="hero-arrow-path" class="size-4" /> {if @show_progress?,
             do: "Hide updates",
             else: "Updates"}</button>
+          <button
+            :if={@map.visibility == :public}
+            id="copy-share"
+            phx-hook="CopyLink"
+            data-url={url(~p"/maps/#{@map.public_slug}")}
+            class="atlas-button"
+          >Copy public link</button>
+          <button phx-click="toggle_sharing" class="atlas-button">
+            {if @map.visibility == :public, do: "Make private", else: "Make public"}
+          </button>
         </div>
       </div>
       <section :if={@editing?} class="atlas-card p-6 mb-7">
@@ -121,43 +131,6 @@ defmodule CAToolsWeb.MapLive.Show do
             >Cancel</button>
           </div>
         </.form>
-      </section>
-      <section
-        id="map-sharing"
-        class="atlas-card p-4 mb-7 flex flex-wrap items-center gap-3"
-      >
-        <.icon name="hero-globe-alt" class="size-5" /><span class="text-sm font-semibold">Share map</span>
-        <p class="text-sm opacity-70 w-full">
-          {if @map.visibility == :public,
-            do: "Anyone with this link can view this map without signing in. Only you can edit it.",
-            else:
-              "Enable a public link so anyone can view this map without signing in. Only you can edit it."}
-        </p>
-        <input
-          :if={@map.visibility == :public}
-          id="share_url"
-          readonly
-          aria-label="Public map link"
-          value={url(~p"/maps/#{@map.public_slug}")}
-          class="input input-sm flex-1 min-w-40"
-        />
-        <button
-          :if={@map.visibility == :public}
-          id="copy-share"
-          phx-hook="CopyLink"
-          data-target="#share_url"
-          data-url={url(~p"/maps/#{@map.public_slug}")}
-          class="atlas-button"
-        >Copy public link</button>
-        <.link
-          :if={@map.visibility == :public}
-          href={~p"/maps/#{@map.public_slug}"}
-          target="_blank"
-          class="text-xs underline"
-        >Open public map</.link>
-        <button phx-click="toggle_sharing" class="atlas-button">
-          {if @map.visibility == :public, do: "Make private", else: "Make public"}
-        </button>
       </section>
       <div class={["grid gap-6", @show_progress? && "xl:grid-cols-[1fr_300px]"]}>
         <section class="atlas-card">

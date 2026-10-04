@@ -35,7 +35,7 @@ The date covers the whole day using your browser's local time. Each map stays li
 
 A new map may be empty while groups are still being discovered or imported. Open its linked communities to check progress and errors. **Update now** refreshes the selected events. Date maps read the community event records directly without copying them.
 
-Date maps and group maps start private. To share a map publicly, open it from **My Maps** and select **Make public** under **Share map**, then **Copy public link**. On **My Communities**, **Manage public link** opens those controls for the selected group. Anyone with a public link can view the map without an account; editing remains restricted to you.
+Date maps and group maps start private. To share a map publicly, open it from **My Maps** and select **Make public** beside **Export KML** and **Updates**, then **Copy public link**. On **My Communities**, **Manage public link** opens those controls for the selected group. Anyone with a public link can view the map without an account; editing remains restricted to you.
 
 ## Invite people to a group map
 

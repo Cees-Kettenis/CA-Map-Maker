@@ -339,7 +339,7 @@ defmodule CAToolsWeb.CommunityLive.Index do
             <p class="text-sm opacity-70">
               Share a read-only map with anyone, without requiring them to sign in.
             </p>
-            <.link navigate={~p"/dashboard/maps/#{@map.id}" <> "#map-sharing"} class="atlas-button">Manage public link</.link>
+            <.link navigate={~p"/dashboard/maps/#{@map.id}"} class="atlas-button">Manage public link</.link>
             <h2 class="text-xl font-semibold">Private sharing</h2>
             <p class="text-sm opacity-70">
               Invite an email, then send this link. They must sign in with that email.

@@ -43,13 +43,15 @@ defmodule CAToolsWeb.MapLive.ShowTest do
 
     for id <- [regular.id, community.map_id, date_map.id] do
       {:ok, owner, _} = conn |> log_in_user(user) |> live(~p"/dashboard/maps/#{id}")
-      assert has_element?(owner, "#map-sharing button", "Make public")
+      assert has_element?(owner, "button[phx-click='toggle_sharing']", "Make public")
       refute has_element?(owner, "#share_url")
+      refute has_element?(owner, "#map-sharing")
+      refute has_element?(owner, "a", "Open public map")
 
       owner |> element("button[phx-click='toggle_sharing']") |> render_click()
       map = Maps.get_map(scope, id)
       assert map.visibility == :public
-      assert has_element?(owner, "#share_url[value$='/maps/#{map.public_slug}']")
+      assert has_element?(owner, "#copy-share[data-url$='/maps/#{map.public_slug}']")
       assert has_element?(owner, "#copy-share", "Copy public link")
       assert has_element?(owner, "button[phx-click='toggle_sharing']", "Make private")
       refute has_element?(owner, "button[phx-click='toggle_sharing']", "Make public")
@@ -172,7 +174,7 @@ defmodule CAToolsWeb.MapLive.ShowTest do
            |> form("#edit_map_form", map: %{name: "My new name", visibility: "public"})
            |> render_submit() =~ "My new name"
 
-    assert has_element?(view, "#share_url")
+    assert has_element?(view, "#copy-share")
     assert Maps.get_map(user_scope_fixture(user), map.id).visibility == :public
     view |> element("#delete-map-dialog button[phx-click='delete']") |> render_click()
     assert_redirect(view, ~p"/dashboard/maps")
