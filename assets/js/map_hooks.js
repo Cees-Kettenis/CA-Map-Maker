@@ -72,9 +72,10 @@ export const AtlasMap = {
           line.textContent = value
           section.appendChild(line)
         }
-        if (meetup.source_url) {
+        const campfireUrl = meetup.campfire_url || meetup.source_url
+        if (campfireUrl) {
           try {
-            const source = new URL(meetup.source_url)
+            const source = new URL(campfireUrl)
             if (['http:', 'https:'].includes(source.protocol)) {
               const link = document.createElement('a')
               link.href = source.href

@@ -58,8 +58,17 @@ defmodule CAToolsWeb.MapLive.ShowTest do
 
       {:ok, public, html} = live(build_conn(), ~p"/maps/#{map.public_slug}")
       refute html =~ user.email
-      refute html =~ source.original_url
-      if id != regular.id, do: assert(html =~ "Shared meetup")
+
+      if id != regular.id do
+        assert html =~ "Shared meetup"
+
+        assert has_element?(
+                 public,
+                 "a[href='#{source.original_url}'][target='_blank'][rel='noopener noreferrer']",
+                 "View on Campfire"
+               )
+      end
+
       assert has_element?(public, "#public-map")
       refute has_element?(public, "button[phx-click='edit']")
       refute has_element?(public, "button[phx-click='delete']")

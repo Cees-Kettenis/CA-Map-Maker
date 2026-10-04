@@ -7,6 +7,39 @@ defmodule CATools.MapsTest do
   import CATools.MapsFixtures
   use Oban.Testing, repo: CATools.Repo
 
+  test "public point data includes only resolved Campfire meetup links without query tokens" do
+    urls = [
+      "http://campfire.nianticlabs.com/discover/meetup/meetup-id?token=secret#details",
+      "https://campfire.nianticlabs.com/discover/events/event-id?token=secret",
+      "https://niantic-social.nianticlabs.com/public/meetup/object-id?token=secret",
+      "https://cmpf.re/invitation",
+      "https://campfire.nianticlabs.com/discover/clubs/club-id",
+      "https://example.com/discover/meetup/meetup-id",
+      nil
+    ]
+
+    map = %CATools.Maps.UserMap{
+      points:
+        Enum.with_index(urls, fn url, id ->
+          %CATools.Maps.MapPoint{id: id, source_url: url}
+        end)
+    }
+
+    points = Maps.point_data(map)
+
+    assert Enum.map(points, & &1.campfire_url) == [
+             "https://campfire.nianticlabs.com/discover/meetup/meetup-id",
+             "https://campfire.nianticlabs.com/discover/events/event-id",
+             "https://niantic-social.nianticlabs.com/public/meetup/object-id",
+             nil,
+             nil,
+             nil,
+             nil
+           ]
+
+    refute Enum.any?(points, &Map.has_key?(&1, :source_url))
+  end
+
   describe "normalize_source_urls/1" do
     test "normalizes supported Campfire URLs, strips fragments, and removes duplicates" do
       input = """

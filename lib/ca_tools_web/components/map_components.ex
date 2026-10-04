@@ -174,8 +174,8 @@ defmodule CAToolsWeb.MapComponents do
             />
           </p>
           <.link
-            :if={point[:source_url]}
-            href={point.source_url}
+            :if={point[:campfire_url] || point[:source_url]}
+            href={point[:campfire_url] || point[:source_url]}
             target="_blank"
             rel="noopener noreferrer"
             class="text-xs underline mt-4 inline-block"

@@ -66,6 +66,19 @@ function renderMarkers(points) {
 
 const meetup = (title, longitude, extra = {}) => ({title, latitude: 3.139, longitude, ...extra})
 
+test('public popups link to Campfire without owner source metadata', () => {
+  const campfireUrl = 'https://campfire.nianticlabs.com/discover/meetup/event-id'
+  const [marker] = renderMarkers([meetup('Public meetup', 101.68, {campfire_url: campfireUrl})])
+  const link = marker.popup.children[0].children.find(child => child.tag === 'a')
+  assert.equal(link.href, campfireUrl)
+  assert.equal(link.textContent, 'View on Campfire')
+  assert.equal(link.target, '_blank')
+  assert.equal(link.rel, 'noopener noreferrer')
+
+  const [unsafe] = renderMarkers([meetup('Invalid link', 101.68, {campfire_url: 'javascript:alert(1)'})])
+  assert.ok(!unsafe.popup.children[0].children.some(child => child.tag === 'a'))
+})
+
 test('meetups at the same coordinates share a marker with the next meetup first', () => {
   const markers = renderMarkers([meetup('Soonest', 101.68), meetup('Another location', 101.70), meetup('Later at the same place', 101.68)])
   assert.equal(markers.length, 2)

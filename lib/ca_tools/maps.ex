@@ -663,7 +663,7 @@ defmodule CATools.Maps do
   def active_points(points, now \\ DateTime.utc_now()),
     do: Enum.reject(points, &meetup_ended?(&1, now))
 
-  @doc "Returns only safe marker metadata. Owner views may include source links."
+  @doc "Returns safe marker metadata and Campfire meetup links. Owner views include source links."
   @spec point_data(UserMap.t(), boolean()) :: [map()]
   def point_data(map, owner? \\ false) do
     now = DateTime.utc_now()
@@ -736,6 +736,19 @@ defmodule CATools.Maps do
         )
         |> Map.put(:host_avatar_url, Map.get(images, point.host_avatar_url))
 
+      campfire_url =
+        case LinkResolver.extract_resource_from_url(point.source_url) do
+          {:ok, _resource} ->
+            point.source_url
+            |> URI.parse()
+            |> Map.merge(%{scheme: "https", port: nil, query: nil, fragment: nil})
+            |> URI.to_string()
+
+          {:error, _reason} ->
+            nil
+        end
+
+      data = Map.put(data, :campfire_url, campfire_url)
       if owner?, do: Map.put(data, :source_url, point.source_url), else: data
     end)
   end

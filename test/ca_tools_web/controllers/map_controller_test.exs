@@ -47,6 +47,20 @@ defmodule CAToolsWeb.MapControllerTest do
     refute Jason.encode!(data) =~ "encrypted_credentials"
   end
 
+  test "public JSON supplies resolved Campfire links for map popups", %{
+    conn: conn,
+    map: map,
+    point: point
+  } do
+    url = "https://campfire.nianticlabs.com/discover/meetup/event-id"
+    Repo.update!(Ecto.Changeset.change(point, source_url: url <> "?token=secret"))
+    data = conn |> get(~p"/maps/#{map.public_slug}/points") |> json_response(200)
+    assert [point] = data["points"]
+    assert point["campfire_url"] == url
+    refute Map.has_key?(point, "source_url")
+    refute Jason.encode!(data) =~ "secret"
+  end
+
   test "public KML escapes XML and omits source links", %{conn: conn, map: map} do
     conn = get(conn, ~p"/maps/#{map.public_slug}/export.kml")
     assert get_resp_header(conn, "content-type") |> hd() =~ "application/vnd.google-earth.kml+xml"
