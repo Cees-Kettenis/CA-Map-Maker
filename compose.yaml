@@ -43,7 +43,7 @@ services:
       OBAN_IMPORT_QUEUE_LIMIT: ${OBAN_IMPORT_QUEUE_LIMIT:-10}
       OBAN_MAINTENANCE_QUEUE_LIMIT: ${OBAN_MAINTENANCE_QUEUE_LIMIT:-2}
     ports:
-      - "127.0.0.1:${APP_PORT:-5000}:5000"
+      - "${APP_BIND_ADDRESS:-127.0.0.1}:${APP_PORT:-5000}:5000"
     volumes:
       - images:/app/storage/meetup_images
 
