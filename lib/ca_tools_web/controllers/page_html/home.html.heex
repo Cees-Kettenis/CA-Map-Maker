@@ -10,16 +10,17 @@
         ><path d="M8 18C110 2 235 3 442 12M70 25C215 13 305 14 386 20" pathLength="1" /></svg></span>
       </h1>
       <p class="mt-7 text-sm sm:text-base opacity-65 leading-relaxed">
-        Import Campfire links, share maps, or export KML.
+        Bring your Pokémon GO communities together. See where everyone is meeting,
+        plan your day, and share a map with your group.
       </p>
       <div class="atlas-landing-actions flex flex-wrap gap-3 mt-8">
         <.link
-          href={if @current_scope, do: ~p"/dashboard/maps", else: ~p"/auth/users/register"}
+          href={if @current_scope, do: ~p"/dashboard/maps", else: ~p"/auth/users/log-in"}
           class="btn btn-primary"
         >Make a new map <.icon name="hero-arrow-up-right" class="size-4" /></.link><a
-          href="#how-it-works"
+          href="#communities"
           class="btn atlas-button"
-        >How it works</a>
+        >Explore the features</a>
       </div>
     </div>
     <div class="atlas-card atlas-landing-map relative h-[360px] sm:h-[440px]">
@@ -40,38 +41,86 @@
     </div>
   </section>
   <section
-    id="how-it-works"
-    class="border-t border-base-300 mt-12 pt-12 grid md:grid-cols-3 gap-8"
+    id="communities"
+    class="atlas-home-communities mt-12"
+    aria-labelledby="communities-title"
   >
-    <article>
-      <span class="atlas-section-icon mb-5"><.icon name="hero-link" class="size-5" /></span>
-      <h2 class="text-xl font-semibold">
-        Add links
-      </h2><p class="text-sm opacity-65 leading-relaxed mt-3">
-        Save your Campfire token and paste one meetup link per line.
+    <div>
+      <p class="atlas-home-eyebrow">Your communities, together</p>
+      <h2 id="communities-title" class="atlas-display text-3xl sm:text-4xl mt-4">
+        One day. More places to play.
+      </h2>
+      <p class="text-sm sm:text-base leading-relaxed mt-5 opacity-65">
+        Follow your Campfire groups and bring their meetups onto one map.
+        Choose a date, pick your communities, and see the day's locations together.
       </p>
-    </article>
-    <article>
-      <span class="atlas-section-icon mb-5" data-tone="coral"><.icon
-        name="hero-map-pin"
-        class="size-5"
-      /></span>
-      <h2 class="text-xl font-semibold">
-        View locations
-      </h2><p class="text-sm opacity-65 leading-relaxed mt-3">
-        Imported meetups appear with their names, groups, and times.
-      </p>
-    </article>
-    <article>
-      <span class="atlas-section-icon mb-5" data-tone="violet"><.icon
-        name="hero-arrow-up-on-square"
-        class="size-5"
-      /></span>
-      <h2 class="text-xl font-semibold">
-        Share or export
-      </h2><p class="text-sm opacity-65 leading-relaxed mt-3">
-        Share a public link or export KML for Google My Maps.
-      </p>
-    </article>
+      <.link
+        href={if @current_scope, do: ~p"/dashboard/community", else: ~p"/auth/users/log-in"}
+        class="atlas-button mt-7"
+      >Follow your communities <.icon name="hero-arrow-up-right" class="size-4" /></.link>
+    </div>
+    <div class="atlas-home-features">
+      <div class="flex items-start gap-4">
+        <span class="atlas-section-icon"><.icon name="hero-user-group" class="size-5" /></span>
+        <div>
+          <h3 class="font-semibold">Keep up with your groups</h3>
+          <p class="text-sm leading-relaxed opacity-65 mt-2">
+            Upcoming meetups refresh daily. Check for updates whenever you need a fresh view.
+          </p>
+        </div>
+      </div>
+      <div class="flex items-start gap-4">
+        <span class="atlas-section-icon" data-tone="coral"><.icon
+          name="hero-calendar-days"
+          class="size-5"
+        /></span>
+        <div>
+          <h3 class="font-semibold">Plan around a date</h3>
+          <p class="text-sm leading-relaxed opacity-65 mt-2">
+            Combine selected communities for a day of raids, a Community Day, or your next group outing.
+          </p>
+        </div>
+      </div>
+      <div class="flex items-start gap-4">
+        <span class="atlas-section-icon" data-tone="violet"><.icon
+          name="hero-lock-closed"
+          class="size-5"
+        /></span>
+        <div>
+          <h3 class="font-semibold">Choose who gets the map</h3>
+          <p class="text-sm leading-relaxed opacity-65 mt-2">
+            Keep maps private, share a public map link, or invite people to your community's map.
+          </p>
+        </div>
+      </div>
+    </div>
+  </section>
+  <section class="atlas-home-faq mt-16" aria-labelledby="questions-title">
+    <div>
+      <p class="atlas-home-eyebrow">Before you get started</p>
+      <h2 id="questions-title" class="atlas-display text-2xl sm:text-3xl mt-4">
+        A few things to know.
+      </h2>
+    </div>
+    <div class="atlas-home-questions">
+      <details>
+        <summary>Do I need a Campfire account?</summary>
+        <p>
+          Ask the administrator for a Pogo Meetups account. Shared Campfire access is managed by the administrator; you do not need to supply a token.
+        </p>
+      </details>
+      <details>
+        <summary>Can my friends view a map without signing up?</summary>
+        <p>
+          Yes, if you make the map public and send them its link. Private community maps require an invitation and a signed-in account.
+        </p>
+      </details>
+      <details>
+        <summary>Can I use my map in Google My Maps?</summary>
+        <p>
+          Export your map as a KML file and import it into Google My Maps. Export it again when you want an updated copy.
+        </p>
+      </details>
+    </div>
   </section>
 </Layouts.app>

@@ -177,6 +177,24 @@ defmodule CAToolsWeb.Auth.UserAuth do
 
   defp user_session_topic(token), do: "users_sessions:#{Base.url_encode64(token)}"
 
+  @doc "Keeps browser routes behind first-run setup while allowing email password setup and recovery."
+  @spec require_initial_setup(Plug.Conn.t(), keyword()) :: Plug.Conn.t()
+  def require_initial_setup(conn, _opts) do
+    setup_path? =
+      case conn.path_info do
+        ["setup"] -> true
+        ["auth", "users", "reset-password" | _] -> true
+        ["dev", "mailbox" | _] -> true
+        _ -> false
+      end
+
+    if setup_path? or Accounts.installation_state() == :ready do
+      conn
+    else
+      conn |> redirect(to: ~p"/setup") |> halt()
+    end
+  end
+
   @doc """
   Handles mounting and authenticating the current_scope in LiveViews.
 
@@ -231,6 +249,11 @@ defmodule CAToolsWeb.Auth.UserAuth do
           _user ->
             {:cont, mounted_socket}
         end
+
+      :require_admin ->
+        if Accounts.admin?(mounted_socket.assigns.current_scope),
+          do: {:cont, mounted_socket},
+          else: {:halt, Phoenix.LiveView.redirect(mounted_socket, to: ~p"/")}
 
       :require_sudo_mode ->
         case Accounts.sudo_mode?(mounted_socket.assigns.current_scope.user, -10) do
@@ -321,6 +344,14 @@ defmodule CAToolsWeb.Auth.UserAuth do
         |> redirect(to: ~p"/auth/users/log-in")
         |> halt()
     end
+  end
+
+  @doc "Restricts account administration to the administrator."
+  @spec require_admin(Plug.Conn.t(), keyword()) :: Plug.Conn.t()
+  def require_admin(conn, _opts) do
+    if Accounts.admin?(conn.assigns.current_scope),
+      do: conn,
+      else: conn |> send_resp(403, "Administrator access required") |> halt()
   end
 
   defp maybe_store_return_to(conn) do

@@ -3,7 +3,7 @@ import {formatMeetupTime} from "./local_time.js"
 function meetupImage(value, alt, className) {
   if (!value) return null
   try {
-    if (!/^\/media\/meetups\/[0-9a-f]{64}$/.test(value)) return null
+    if (!/^\/media\/meetups\/[0-9a-f]{64}(\?v=[12])?$/.test(value)) return null
     const image = document.createElement('img')
     image.src = value
     image.alt = alt

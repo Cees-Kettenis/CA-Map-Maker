@@ -319,7 +319,7 @@ defmodule CAToolsWeb.CommunityLive.Index do
               </h2>
               <.link
                 href={~p"/dashboard/maps/#{@map.id}/export.kml"}
-                download="campfire-map.kml"
+                download="pogo-meetups-map.kml"
                 class="atlas-button"
               >Export KML</.link>
             </div>

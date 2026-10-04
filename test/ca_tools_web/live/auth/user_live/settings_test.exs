@@ -14,7 +14,8 @@ defmodule CAToolsWeb.Auth.UserLive.SettingsTest do
 
       assert html =~ "Change Email"
       assert html =~ "Save Password"
-      assert html =~ "Campfire token"
+      refute html =~ "Campfire token"
+      assert html =~ "Delete your account"
     end
 
     test "redirects if user is not logged in", %{conn: conn} do
@@ -213,7 +214,7 @@ defmodule CAToolsWeb.Auth.UserLive.SettingsTest do
 
   describe "Campfire credentials" do
     setup %{conn: conn} do
-      user = user_fixture()
+      user = admin_user_fixture()
       %{conn: log_in_user(conn, user), user: user}
     end
 

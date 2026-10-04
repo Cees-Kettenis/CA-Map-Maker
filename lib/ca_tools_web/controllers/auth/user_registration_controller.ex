@@ -5,6 +5,17 @@ defmodule CAToolsWeb.Auth.UserRegistrationController do
   alias CATools.Accounts.User
   alias CAToolsWeb.RequestSecurity
 
+  plug :require_signup
+
+  defp require_signup(conn, _opts) do
+    if Accounts.public_signup_enabled?(),
+      do: conn,
+      else:
+        conn
+        |> send_resp(403, "Public signups are disabled. Contact the administrator.")
+        |> halt()
+  end
+
   @doc "Renders the registration form."
   @spec new(Plug.Conn.t(), map()) :: Plug.Conn.t()
   def new(conn, _params) do

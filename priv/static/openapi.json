@@ -1,7 +1,7 @@
 {
   "openapi": "3.0.3",
   "info": {
-    "title": "Campfire Atlas",
+    "title": "Pogo Meetups",
     "version": "0.1.0"
   },
   "paths": {
@@ -191,7 +191,8 @@
           "403": {
             "description": "Invalid CSRF token"
           }
-        }
+        },
+        "description": "Sets a password with a valid single-use token. Initial administrator setup also logs in the administrator and opens Settings."
       }
     },
     "/": {
@@ -299,7 +300,8 @@
           "404": {
             "description": "Not found"
           }
-        }
+        },
+        "description": "Public signup is disabled by default; redirects to login."
       },
       "post": {
         "operationId": "registerAccount",
@@ -313,7 +315,7 @@
             "description": "Redirect with outcome"
           },
           "403": {
-            "description": "Invalid CSRF token"
+            "description": "Public signup disabled or invalid CSRF token"
           }
         }
       }
@@ -355,7 +357,7 @@
     "/auth/users/settings": {
       "get": {
         "operationId": "accountSettings",
-        "summary": "Account and Campfire token settings",
+        "summary": "Own email/password settings; shared Campfire token management for the administrator only",
         "parameters": [],
         "responses": {
           "200": {
@@ -528,6 +530,108 @@
           },
           "404": {
             "description": "Image unavailable"
+          }
+        }
+      }
+    },
+    "/auth/users/account": {
+      "delete": {
+        "operationId": "deleteOwnAccount",
+        "summary": "Delete the authenticated account and its owned records and exclusive files",
+        "description": "Requires a session, recent authentication, CSRF token and account[email] matching the current email. Shared cached files still referenced by another user are retained.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "account[email]"
+                ],
+                "properties": {
+                  "account[email]": {
+                    "type": "string",
+                    "format": "email"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "302": {
+            "description": "Deleted and logged out, or redirected with an error; unauthenticated users redirected to login"
+          },
+          "403": {
+            "description": "Invalid CSRF token"
+          }
+        }
+      }
+    },
+    "/dashboard/users": {
+      "get": {
+        "operationId": "adminUsers",
+        "summary": "Administrator-only user list and account creation form",
+        "description": "Administrator-only account creation via an authenticated LiveView event. Emails a single-use password setup link; no password is displayed or sent. Regular users cannot list or create accounts.",
+        "responses": {
+          "200": {
+            "description": "Admin page"
+          },
+          "302": {
+            "description": "Login required"
+          },
+          "403": {
+            "description": "Administrator required"
+          }
+        }
+      }
+    },
+    "/setup": {
+      "get": {
+        "operationId": "initialSetup",
+        "summary": "First-run administrator setup wizard",
+        "description": "An empty database opens email setup. A pending administrator is prompted to finish password setup. Ready installations redirect home. Other browser routes remain gated until ready, except password setup/recovery and the development mailbox.",
+        "responses": {
+          "200": {
+            "description": "Email entry or check-inbox page"
+          },
+          "302": {
+            "description": "Installation already initialized"
+          }
+        }
+      },
+      "post": {
+        "operationId": "createInitialAdmin",
+        "summary": "Email the first administrator a single-use password setup link",
+        "description": "Requires CSRF token. Available only for an empty installation. Serialized database checks prevent simultaneous requests from replacing the selected admin. Email failure rolls back the account. The app opens only after password setup completes.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "setup[email]"
+                ],
+                "properties": {
+                  "setup[email]": {
+                    "type": "string",
+                    "format": "email"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Email validation errors"
+          },
+          "302": {
+            "description": "Setup state or rate-limit/email delivery error"
+          },
+          "403": {
+            "description": "Invalid CSRF token"
           }
         }
       }

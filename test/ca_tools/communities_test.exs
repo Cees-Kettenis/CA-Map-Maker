@@ -130,7 +130,7 @@ defmodule CATools.CommunitiesTest do
     )
 
     on_exit(fn -> Application.put_env(:ca_tools, GraphQLClient, original) end)
-    scope = user_scope_fixture()
+    scope = user_scope_fixture(admin_user_fixture())
 
     {:ok, user} =
       Accounts.update_user_campfire_token(scope.user, %{"campfire_token_input" => "test-token"})
@@ -222,7 +222,7 @@ defmodule CATools.CommunitiesTest do
     on_exit(fn -> Application.put_env(:ca_tools, GraphQLClient, original) end)
 
     {:ok, user} =
-      Accounts.update_user_campfire_token(user_fixture(), %{
+      Accounts.update_user_campfire_token(admin_user_fixture(), %{
         "campfire_token_input" => "test-token"
       })
 

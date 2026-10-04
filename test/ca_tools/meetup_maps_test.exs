@@ -196,6 +196,118 @@ defmodule CATools.MeetupMapsTest do
     assert Communities.get(scope, community.id)
   end
 
+  test "meetups without covers reuse their own community's cached logo on group and date maps" do
+    scope = user_scope_fixture()
+    nonce = System.unique_integer([:positive])
+
+    {:ok, communities} =
+      Communities.add_links(
+        scope,
+        Enum.map_join(
+          ["one", "two"],
+          "\n",
+          &"https://campfire.nianticlabs.com/discover/clubs/logo-#{&1}-#{nonce}"
+        )
+      )
+
+    logos =
+      Enum.map(communities, fn community ->
+        url = "https://cdn.example.com/logo-#{community.id}.webp"
+
+        community
+        |> Ecto.Changeset.change(avatar_url: url, club_id: "club-#{community.id}")
+        |> Repo.update!()
+
+        id = Maps.ImageCache.key(url)
+
+        Repo.insert!(%Maps.CachedImage{
+          id: id,
+          status: "saved",
+          content_type: "image/webp",
+          processing_version: 1,
+          attempted_at: DateTime.utc_now(:second)
+        })
+
+        File.mkdir_p!(Maps.ImageCache.directory())
+        path = Path.join(Maps.ImageCache.directory(), id)
+        File.write!(path, "existing-logo")
+        on_exit(fn -> File.rm(path) end)
+        add_point(community, "no-cover-#{community.id}", ~U[2099-10-03 12:00:00Z])
+        {community.map_id, "/media/meetups/#{id}?v=1"}
+      end)
+
+    original_records = Repo.aggregate(Maps.CachedImage, :count)
+
+    {:ok, date_map} =
+      MeetupMaps.create(scope, %{
+        name: "Community logos",
+        meetup_date: "2099-10-03",
+        community_ids: Enum.map(communities, & &1.id)
+      })
+
+    data = Maps.point_data(date_map)
+
+    for {map_id, logo} <- logos do
+      point = Enum.find(date_map.points, &(&1.map_id == map_id))
+      assert Enum.find(data, &(&1.id == point.id)).cover_photo_url == logo
+      group = Maps.get_map(scope, map_id)
+      assert hd(Maps.point_data(group)).cover_photo_url == logo
+      assert Repo.get!(MapPoint, point.id).cover_photo_url == nil
+
+      assert File.read!(Path.join(Maps.ImageCache.directory(), String.slice(logo, 15, 64))) ==
+               "existing-logo"
+    end
+
+    assert Repo.aggregate(Maps.CachedImage, :count) == original_records
+
+    [first_community | _] = communities
+    pasted_map = CATools.MapsFixtures.map_fixture(scope)
+
+    pasted_point = %{
+      hd(date_map.points)
+      | map_id: pasted_map.id,
+        club_id: "club-#{first_community.id}"
+    }
+
+    assert hd(Maps.point_data(%{pasted_map | points: [pasted_point]})).cover_photo_url ==
+             Map.new(logos)[first_community.map_id]
+
+    other_owner = %{pasted_map | user_id: user_scope_fixture().user.id, points: [pasted_point]}
+    assert hd(Maps.point_data(other_owner)).cover_photo_url == nil
+
+    [first_point | _] = date_map.points
+    first_community = Repo.get!(CATools.Communities.Community, first_community.id)
+    first_community |> Ecto.Changeset.change(club_id: nil) |> Repo.update!()
+    unknown = %{pasted_point | id: -1, club_id: nil}
+    mixed = %{date_map | points: [first_point, unknown]}
+    assert Enum.find(Maps.point_data(mixed), &(&1.id == -1)).cover_photo_url == nil
+
+    [point | _] = date_map.points
+    cover = "https://cdn.example.com/real-cover-#{nonce}.webp"
+    id = Maps.ImageCache.key(cover)
+
+    Repo.insert!(%Maps.CachedImage{
+      id: id,
+      status: "saved",
+      content_type: "image/webp",
+      processing_version: 1,
+      attempted_at: DateTime.utc_now(:second)
+    })
+
+    path = Path.join(Maps.ImageCache.directory(), id)
+    File.write!(path, "real-cover")
+    on_exit(fn -> File.rm(path) end)
+    with_cover = %{date_map | points: [%{point | cover_photo_url: cover}]}
+    assert hd(Maps.point_data(with_cover)).cover_photo_url == "/media/meetups/#{id}?v=1"
+
+    File.rm!(path)
+    assert hd(Maps.point_data(with_cover)).cover_photo_url == nil
+    [community | _] = communities
+    community = Repo.get!(CATools.Communities.Community, community.id)
+    community |> Ecto.Changeset.change(avatar_url: nil) |> Repo.update!()
+    assert hd(Maps.point_data(Maps.get_map(scope, community.map_id))).cover_photo_url == nil
+  end
+
   defp add_point(community, id, starts_at) do
     url = "https://campfire.nianticlabs.com/discover/meetup/#{id}"
 

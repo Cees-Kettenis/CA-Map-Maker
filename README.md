@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/assets/readme-banner.svg" alt="Campfire Atlas" />
+  <img src="docs/assets/readme-banner.svg" alt="Pogo Meetups" />
 </p>
 
 <p align="center">
@@ -8,14 +8,14 @@
   <img src="https://img.shields.io/badge/elixir-~%3E%201.20-4B275F.svg" alt="Elixir ~> 1.20" />
 </p>
 
-# Campfire Atlas
+# Pogo Meetups
 
-Campfire Atlas turns Campfire meetup links into community maps. Import the
+Pogo Meetups turns Campfire meetup links into community maps. Import the
 meetups you want to include, share a public map, or export KML for Google My Maps.
 
 ## What it does
 
-1. [Map creation](docs/creating-maps.md): imports meetup locations, names, groups, and times using your Campfire account.
+1. [Map creation](docs/creating-maps.md): imports meetup locations, names, groups, and times using shared Campfire access configured by the administrator.
 2. [Sharing](docs/sharing-maps.md): publishes a map through a public link, with private maps visible only to their owner.
 3. [KML exports](docs/kml-exports.md): downloads locations for manual import into Google My Maps.
 4. [My Communities](docs/my-community.md): monitors your groups and builds date-based meetup maps and shares its map only with invited, signed-in accounts.

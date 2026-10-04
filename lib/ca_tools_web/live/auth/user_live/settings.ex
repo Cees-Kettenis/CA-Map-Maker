@@ -71,8 +71,11 @@ defmodule CAToolsWeb.Auth.UserLive.Settings do
 
         <div class="divider" />
 
-        <section class="space-y-4">
-          <h2 class="text-lg font-semibold">Campfire token</h2>
+        <section :if={@current_scope.user.admin} class="space-y-4">
+          <h2 class="text-lg font-semibold">Shared Campfire token</h2>
+          <p class="text-sm opacity-70">
+            This token provides Campfire access for every user. It is never shown to other accounts.
+          </p>
           <p class="text-sm opacity-70">
             Set your group link and private invitations in <.link
               navigate={~p"/dashboard/community"}
@@ -119,6 +122,30 @@ defmodule CAToolsWeb.Auth.UserLive.Settings do
           >
             Delete Saved Token
           </.button>
+        </section>
+        <section class="mt-8 border-t border-base-300 pt-6">
+          <h2 class="text-lg font-semibold">Delete your account</h2>
+          <p class="text-sm opacity-70 my-4">
+            This permanently deletes your maps, communities, invitations, sessions and account data. Images still used by other users are kept.
+          </p>
+          <.form
+            for={%{}}
+            as={:account}
+            id="delete-account-form"
+            action={~p"/auth/users/account"}
+            method="delete"
+          >
+            <label class="block text-sm mb-2" for="delete-account-email">Type your email address to confirm</label>
+            <input
+              class="input w-full mb-4"
+              id="delete-account-email"
+              type="email"
+              name="account[email]"
+              required
+              autocomplete="off"
+            />
+            <.button variant="danger" data-confirm="Permanently delete your account and all its data?">Delete my account</.button>
+          </.form>
         </section>
       </div>
     </Layouts.app>
@@ -171,172 +198,181 @@ defmodule CAToolsWeb.Auth.UserLive.Settings do
   @spec handle_event(String.t(), map(), Phoenix.LiveView.Socket.t()) ::
           {:noreply, Phoenix.LiveView.Socket.t()}
   def handle_event(event, params, socket) do
-    case {event, params} do
-      {"validate_email", %{"user" => user_params}} ->
-        email_form =
-          socket.assigns.current_scope.user
-          |> Accounts.change_user_email(user_params, validate_unique: false)
-          |> Map.put(:action, :validate)
-          |> to_form()
+    if event in [
+         "validate_campfire_credentials",
+         "submit_campfire_credentials",
+         "delete_campfire_credentials"
+       ] and
+         not Accounts.admin?(socket.assigns.current_scope) do
+      {:noreply, put_flash(socket, :error, "Only the administrator can manage Campfire access.")}
+    else
+      case {event, params} do
+        {"validate_email", %{"user" => user_params}} ->
+          email_form =
+            socket.assigns.current_scope.user
+            |> Accounts.change_user_email(user_params, validate_unique: false)
+            |> Map.put(:action, :validate)
+            |> to_form()
 
-        {:noreply, assign(socket, email_form: email_form)}
+          {:noreply, assign(socket, email_form: email_form)}
 
-      {"update_email", %{"user" => user_params}} ->
-        user = socket.assigns.current_scope.user
-        true = Accounts.sudo_mode?(user)
+        {"update_email", %{"user" => user_params}} ->
+          user = socket.assigns.current_scope.user
+          true = Accounts.sudo_mode?(user)
 
-        case Accounts.change_user_email(user, user_params) do
-          %{valid?: true} = changeset ->
-            Accounts.deliver_user_update_email_instructions(
-              Ecto.Changeset.apply_action!(changeset, :insert),
-              user.email,
-              &url(~p"/auth/users/settings/confirm-email/#{&1}")
-            )
+          case Accounts.change_user_email(user, user_params) do
+            %{valid?: true} = changeset ->
+              Accounts.deliver_user_update_email_instructions(
+                Ecto.Changeset.apply_action!(changeset, :insert),
+                user.email,
+                &url(~p"/auth/users/settings/confirm-email/#{&1}")
+              )
 
-            info = "A link to confirm your email change has been sent to the new address."
-            {:noreply, socket |> put_flash(:info, info)}
+              info = "A link to confirm your email change has been sent to the new address."
+              {:noreply, socket |> put_flash(:info, info)}
 
-          changeset ->
-            {:noreply, assign(socket, :email_form, to_form(changeset, action: :insert))}
-        end
+            changeset ->
+              {:noreply, assign(socket, :email_form, to_form(changeset, action: :insert))}
+          end
 
-      {"validate_password", %{"user" => user_params}} ->
-        password_form =
-          socket.assigns.current_scope.user
-          |> Accounts.change_user_password(user_params, hash_password: false)
-          |> Map.put(:action, :validate)
-          |> to_form()
+        {"validate_password", %{"user" => user_params}} ->
+          password_form =
+            socket.assigns.current_scope.user
+            |> Accounts.change_user_password(user_params, hash_password: false)
+            |> Map.put(:action, :validate)
+            |> to_form()
 
-        {:noreply, assign(socket, password_form: password_form)}
+          {:noreply, assign(socket, password_form: password_form)}
 
-      {"update_password", %{"user" => user_params}} ->
-        user = socket.assigns.current_scope.user
-        true = Accounts.sudo_mode?(user)
+        {"update_password", %{"user" => user_params}} ->
+          user = socket.assigns.current_scope.user
+          true = Accounts.sudo_mode?(user)
 
-        case Accounts.change_user_password(user, user_params) do
-          %{valid?: true} = changeset ->
-            {:noreply, assign(socket, trigger_submit: true, password_form: to_form(changeset))}
+          case Accounts.change_user_password(user, user_params) do
+            %{valid?: true} = changeset ->
+              {:noreply, assign(socket, trigger_submit: true, password_form: to_form(changeset))}
 
-          changeset ->
-            {:noreply, assign(socket, password_form: to_form(changeset, action: :insert))}
-        end
+            changeset ->
+              {:noreply, assign(socket, password_form: to_form(changeset, action: :insert))}
+          end
 
-      {"validate_campfire_credentials", %{"campfire_credentials" => credential_params}} ->
-        changeset =
-          Accounts.change_user_campfire_token(credential_params)
-          |> Map.put(:action, :validate)
+        {"validate_campfire_credentials", %{"campfire_credentials" => credential_params}} ->
+          changeset =
+            Accounts.change_user_campfire_token(credential_params)
+            |> Map.put(:action, :validate)
 
-        {:noreply,
-         assign(
-           socket,
-           :campfire_credentials_form,
-           to_form(changeset, as: "campfire_credentials")
-         )}
+          {:noreply,
+           assign(
+             socket,
+             :campfire_credentials_form,
+             to_form(changeset, as: "campfire_credentials")
+           )}
 
-      {"submit_campfire_credentials",
-       %{"campfire_credentials" => credential_params, "intent" => "validate"}} ->
-        user = socket.assigns.current_scope.user
+        {"submit_campfire_credentials",
+         %{"campfire_credentials" => credential_params, "intent" => "validate"}} ->
+          user = socket.assigns.current_scope.user
 
-        case RequestSecurity.check_limits([
-               {:campfire_credentials_validate, "#{user.id}:#{socket.assigns.client_ip}"}
-             ]) do
-          :ok ->
-            changeset = Accounts.change_user_campfire_token(credential_params)
+          case RequestSecurity.check_limits([
+                 {:campfire_credentials_validate, "#{user.id}:#{socket.assigns.client_ip}"}
+               ]) do
+            :ok ->
+              changeset = Accounts.change_user_campfire_token(credential_params)
 
-            case changeset.valid? do
-              true ->
-                {:noreply,
-                 socket
-                 |> put_flash(
-                   :info,
-                   "Token format is valid. Campfire access is checked during import."
-                 )
-                 |> assign(
-                   :campfire_credentials_form,
-                   to_form(changeset, as: "campfire_credentials")
-                 )}
+              case changeset.valid? do
+                true ->
+                  {:noreply,
+                   socket
+                   |> put_flash(
+                     :info,
+                     "Token format is valid. Campfire access is checked during import."
+                   )
+                   |> assign(
+                     :campfire_credentials_form,
+                     to_form(changeset, as: "campfire_credentials")
+                   )}
 
-              false ->
-                {:noreply,
-                 assign(
-                   socket,
-                   :campfire_credentials_form,
-                   to_form(Map.put(changeset, :action, :validate), as: "campfire_credentials")
-                 )}
-            end
+                false ->
+                  {:noreply,
+                   assign(
+                     socket,
+                     :campfire_credentials_form,
+                     to_form(Map.put(changeset, :action, :validate), as: "campfire_credentials")
+                   )}
+              end
 
-          {:error, retry_after_seconds} ->
-            {:noreply,
-             put_flash(
-               socket,
-               :error,
-               "Too many credential validation attempts. Try again in #{retry_after_seconds} seconds."
-             )}
-        end
+            {:error, retry_after_seconds} ->
+              {:noreply,
+               put_flash(
+                 socket,
+                 :error,
+                 "Too many credential validation attempts. Try again in #{retry_after_seconds} seconds."
+               )}
+          end
 
-      {"submit_campfire_credentials",
-       %{"campfire_credentials" => credential_params, "intent" => "save"}} ->
-        user = socket.assigns.current_scope.user
+        {"submit_campfire_credentials",
+         %{"campfire_credentials" => credential_params, "intent" => "save"}} ->
+          user = socket.assigns.current_scope.user
 
-        case RequestSecurity.check_limits([
-               {:campfire_credentials_save, "#{user.id}:#{socket.assigns.client_ip}"}
-             ]) do
-          :ok ->
-            case Accounts.update_user_campfire_token(user, credential_params) do
-              {:ok, _updated_user} ->
-                {:noreply,
-                 socket
-                 |> put_flash(:info, "Campfire token saved.")
-                 |> assign(:campfire_token_saved?, true)
-                 |> assign(
-                   :campfire_credentials_form,
-                   to_form(Accounts.change_user_campfire_token(), as: "campfire_credentials")
-                 )}
+          case RequestSecurity.check_limits([
+                 {:campfire_credentials_save, "#{user.id}:#{socket.assigns.client_ip}"}
+               ]) do
+            :ok ->
+              case Accounts.update_user_campfire_token(user, credential_params) do
+                {:ok, _updated_user} ->
+                  {:noreply,
+                   socket
+                   |> put_flash(:info, "Campfire token saved.")
+                   |> assign(:campfire_token_saved?, true)
+                   |> assign(
+                     :campfire_credentials_form,
+                     to_form(Accounts.change_user_campfire_token(), as: "campfire_credentials")
+                   )}
 
-              {:error, changeset} ->
-                {:noreply,
-                 assign(
-                   socket,
-                   :campfire_credentials_form,
-                   to_form(Map.put(changeset, :action, :validate), as: "campfire_credentials")
-                 )}
-            end
+                {:error, changeset} ->
+                  {:noreply,
+                   assign(
+                     socket,
+                     :campfire_credentials_form,
+                     to_form(Map.put(changeset, :action, :validate), as: "campfire_credentials")
+                   )}
+              end
 
-          {:error, retry_after_seconds} ->
-            {:noreply,
-             put_flash(
-               socket,
-               :error,
-               "Too many credential save attempts. Try again in #{retry_after_seconds} seconds."
-             )}
-        end
+            {:error, retry_after_seconds} ->
+              {:noreply,
+               put_flash(
+                 socket,
+                 :error,
+                 "Too many credential save attempts. Try again in #{retry_after_seconds} seconds."
+               )}
+          end
 
-      {"delete_campfire_credentials", _params} ->
-        user = socket.assigns.current_scope.user
+        {"delete_campfire_credentials", _params} ->
+          user = socket.assigns.current_scope.user
 
-        case RequestSecurity.check_limits([
-               {:campfire_credentials_delete, "#{user.id}:#{socket.assigns.client_ip}"}
-             ]) do
-          :ok ->
-            {:ok, _updated_user} = Accounts.delete_user_campfire_token(user)
+          case RequestSecurity.check_limits([
+                 {:campfire_credentials_delete, "#{user.id}:#{socket.assigns.client_ip}"}
+               ]) do
+            :ok ->
+              {:ok, _updated_user} = Accounts.delete_user_campfire_token(user)
 
-            {:noreply,
-             socket
-             |> put_flash(:info, "Campfire token deleted.")
-             |> assign(:campfire_token_saved?, false)
-             |> assign(
-               :campfire_credentials_form,
-               to_form(Accounts.change_user_campfire_token(), as: "campfire_credentials")
-             )}
+              {:noreply,
+               socket
+               |> put_flash(:info, "Campfire token deleted.")
+               |> assign(:campfire_token_saved?, false)
+               |> assign(
+                 :campfire_credentials_form,
+                 to_form(Accounts.change_user_campfire_token(), as: "campfire_credentials")
+               )}
 
-          {:error, retry_after_seconds} ->
-            {:noreply,
-             put_flash(
-               socket,
-               :error,
-               "Too many credential delete attempts. Try again in #{retry_after_seconds} seconds."
-             )}
-        end
+            {:error, retry_after_seconds} ->
+              {:noreply,
+               put_flash(
+                 socket,
+                 :error,
+                 "Too many credential delete attempts. Try again in #{retry_after_seconds} seconds."
+               )}
+          end
+      end
     end
   end
 end

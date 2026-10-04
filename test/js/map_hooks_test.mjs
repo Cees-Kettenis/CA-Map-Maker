@@ -72,3 +72,32 @@ test('remote cover URLs are never requested by the browser', () => {
   const markers = renderMarkers([meetup('Remote image', 101.68, {cover_photo_url: 'https://cdn.example.com/remote.jpg'})])
   assert.equal(markers[0].popup.children[0].children[0].tag, 'h3')
 })
+
+test('processed cover photos and host avatars appear in the same popup', () => {
+  const cover = `/media/meetups/${'c'.repeat(64)}?v=2`
+  const avatar = `/media/meetups/${'d'.repeat(64)}?v=2`
+  const [marker] = renderMarkers([meetup('Processed meetup', 101.68, {
+    cover_photo_url: cover, host_avatar_url: avatar, host_name: 'Trainer',
+  })])
+  const section = marker.popup.children[0]
+  assert.equal(section.children[0].src, cover)
+  assert.equal(section.children[1].textContent, 'Processed meetup')
+  assert.equal(section.children[2].children[0].src, avatar)
+  assert.equal(section.children[2].children[1].textContent, 'Hosted by Trainer')
+})
+
+test('popup images reject unexpected queries and external addresses', () => {
+  for (const url of [
+    `/media/meetups/${'c'.repeat(64)}?v=3`,
+    `/media/meetups/${'c'.repeat(64)}?v=1&redirect=https://example.com`,
+    `https://example.com/media/meetups/${'c'.repeat(64)}?v=1`,
+  ]) {
+    const [marker] = renderMarkers([meetup('Invalid image', 101.68, {
+      cover_photo_url: url, host_avatar_url: url, host_name: 'Trainer',
+    })])
+    const section = marker.popup.children[0]
+    assert.equal(section.children[0].tag, 'h3')
+    assert.equal(section.children[1].children.length, 1)
+    assert.equal(section.children[1].children[0].textContent, 'Hosted by Trainer')
+  }
+})

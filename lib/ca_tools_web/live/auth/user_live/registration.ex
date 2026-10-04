@@ -50,19 +50,26 @@ defmodule CAToolsWeb.Auth.UserLive.Registration do
   @spec mount(map(), map(), Phoenix.LiveView.Socket.t()) ::
           {:ok, Phoenix.LiveView.Socket.t(), keyword()} | {:ok, Phoenix.LiveView.Socket.t()}
   def mount(_params, _session, socket) do
-    case get_in(socket.assigns, [:current_scope, Access.key(:user)]) do
-      nil ->
-        changeset =
-          Accounts.change_user_registration(%{}, validate_unique: false, hash_password: false)
+    if not Accounts.public_signup_enabled?() do
+      {:ok,
+       socket
+       |> put_flash(:error, "Public signups are disabled. Contact the administrator.")
+       |> redirect(to: ~p"/auth/users/log-in")}
+    else
+      case get_in(socket.assigns, [:current_scope, Access.key(:user)]) do
+        nil ->
+          changeset =
+            Accounts.change_user_registration(%{}, validate_unique: false, hash_password: false)
 
-        {:ok,
-         socket
-         |> assign(:page_title, "Create an account")
-         |> assign(:client_ip, RequestSecurity.live_client_ip(socket))
-         |> assign_form(changeset), temporary_assigns: [form: nil]}
+          {:ok,
+           socket
+           |> assign(:page_title, "Create an account")
+           |> assign(:client_ip, RequestSecurity.live_client_ip(socket))
+           |> assign_form(changeset), temporary_assigns: [form: nil]}
 
-      _user ->
-        {:ok, redirect(socket, to: CAToolsWeb.Auth.UserAuth.signed_in_path(socket))}
+        _user ->
+          {:ok, redirect(socket, to: CAToolsWeb.Auth.UserAuth.signed_in_path(socket))}
+      end
     end
   end
 
@@ -71,64 +78,69 @@ defmodule CAToolsWeb.Auth.UserLive.Registration do
   @spec handle_event(String.t(), map(), Phoenix.LiveView.Socket.t()) ::
           {:noreply, Phoenix.LiveView.Socket.t()}
   def handle_event(event, params, socket) do
-    case {event, params} do
-      {"save", %{"user" => user_params}} ->
-        limits = [
-          {:registration_ip, socket.assigns.client_ip},
-          {:registration_email, RequestSecurity.normalize_email_identifier(user_params["email"])}
-        ]
+    if not Accounts.public_signup_enabled?() do
+      {:noreply, redirect(socket, to: ~p"/auth/users/log-in")}
+    else
+      case {event, params} do
+        {"save", %{"user" => user_params}} ->
+          limits = [
+            {:registration_ip, socket.assigns.client_ip},
+            {:registration_email,
+             RequestSecurity.normalize_email_identifier(user_params["email"])}
+          ]
 
-        case RequestSecurity.check_limits(limits) do
-          :ok ->
-            case Accounts.register_user(user_params) do
-              {:ok, user} ->
-                {kind, message} =
-                  case Accounts.deliver_signup_instructions(
-                         user,
-                         &url(~p"/auth/users/log-in/#{&1}"),
-                         &url(~p"/auth/users/confirm/#{&1}")
-                       ) do
-                    {:ok, _} ->
-                      {:info,
-                       "An email was sent to #{user.email}, please access it to confirm your account."}
+          case RequestSecurity.check_limits(limits) do
+            :ok ->
+              case Accounts.register_user(user_params) do
+                {:ok, user} ->
+                  {kind, message} =
+                    case Accounts.deliver_signup_instructions(
+                           user,
+                           &url(~p"/auth/users/log-in/#{&1}"),
+                           &url(~p"/auth/users/confirm/#{&1}")
+                         ) do
+                      {:ok, _} ->
+                        {:info,
+                         "An email was sent to #{user.email}, please access it to confirm your account."}
 
-                    {:error, _reason} ->
-                      {:error,
-                       "Your account was created, but we couldn't send its confirmation email. Contact the administrator."}
-                  end
+                      {:error, _reason} ->
+                        {:error,
+                         "Your account was created, but we couldn't send its confirmation email. Contact the administrator."}
+                    end
 
-                {:noreply,
-                 socket
-                 |> put_flash(kind, message)
-                 |> push_navigate(to: ~p"/auth/users/log-in")}
+                  {:noreply,
+                   socket
+                   |> put_flash(kind, message)
+                   |> push_navigate(to: ~p"/auth/users/log-in")}
 
-              {:error, %Ecto.Changeset{} = changeset} ->
-                {:noreply, assign_form(socket, changeset)}
-            end
+                {:error, %Ecto.Changeset{} = changeset} ->
+                  {:noreply, assign_form(socket, changeset)}
+              end
 
-          {:error, retry_after_seconds} ->
-            {:noreply,
-             socket
-             |> put_flash(
-               :error,
-               "Too many registration attempts. Try again in #{retry_after_seconds} seconds."
-             )
-             |> assign_form(
-               Accounts.change_user_registration(user_params,
-                 validate_unique: false,
-                 hash_password: false
+            {:error, retry_after_seconds} ->
+              {:noreply,
+               socket
+               |> put_flash(
+                 :error,
+                 "Too many registration attempts. Try again in #{retry_after_seconds} seconds."
                )
-             )}
-        end
+               |> assign_form(
+                 Accounts.change_user_registration(user_params,
+                   validate_unique: false,
+                   hash_password: false
+                 )
+               )}
+          end
 
-      {"validate", %{"user" => user_params}} ->
-        changeset =
-          Accounts.change_user_registration(user_params,
-            validate_unique: false,
-            hash_password: false
-          )
+        {"validate", %{"user" => user_params}} ->
+          changeset =
+            Accounts.change_user_registration(user_params,
+              validate_unique: false,
+              hash_password: false
+            )
 
-        {:noreply, assign_form(socket, Map.put(changeset, :action, :validate))}
+          {:noreply, assign_form(socket, Map.put(changeset, :action, :validate))}
+      end
     end
   end
 

@@ -16,9 +16,7 @@ Choose the task you want to perform.
 
 ## Getting started
 
-Create an account, save your Campfire token in **Settings**, then open **My Maps**
-and paste one meetup link per line. Start with a few meetups your Campfire
-account can access.
+Ask the administrator for an account and follow your password setup email. The administrator saves the shared Campfire token in **Settings**. Open **My Maps** and paste one meetup link per line. Start with meetups that the shared Campfire account can access.
 
 For local setup and contribution checks, see [development](development.md).
 To host the application, see [deployment](deployment.md).

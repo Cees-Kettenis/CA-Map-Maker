@@ -1,7 +1,7 @@
 defmodule CATools.Campfire.ImageCacheJob do
   @moduledoc "Downloads each meetup image once, independently of event imports."
   use Oban.Worker,
-    queue: :maintenance,
+    queue: :images,
     max_attempts: 1,
     unique: [
       period: :infinity,
@@ -16,7 +16,7 @@ defmodule CATools.Campfire.ImageCacheJob do
   @doc "Stores the image locally, recording failed attempts without upstream retries."
   @spec perform(Oban.Job.t()) :: :ok
   def perform(%Oban.Job{args: %{"url" => url}}) do
-    CATools.Maps.ImageCache.fetch(url)
+    CATools.Maps.ImageCache.fetch(url, require_reference: true)
 
     owners =
       Repo.all(

@@ -1,6 +1,6 @@
 # Creating a map
 
-Save your [Campfire token](campfire-credentials.md) first. To build a map for a date using tracked groups, follow [My Communities](my-community.md). For individual meetup links, choose **Paste links**.
+The administrator must configure the [shared Campfire token](campfire-credentials.md) first. To build a map for a date using tracked groups, follow [My Communities](my-community.md). For individual meetup links, choose **Paste links**.
 
 1. Open **My Maps**.
 2. Under **Make a new map**, enter a name and an optional description.
@@ -20,7 +20,7 @@ https://campfire.nianticlabs.com/discover/events/...
 https://niantic-social.nianticlabs.com/public/meetup/...
 ```
 
-Use [My Communities](my-community.md) to monitor a group. Club links are not supported in this meetup form. The Campfire account associated with your token
+Use [My Communities](my-community.md) to monitor a group. Club links are not supported in this meetup form. The Campfire account associated with the shared token
 must be able to access the meetups.
 
 ## Import behavior
@@ -44,6 +44,6 @@ Meetup dates and times on cards and map popups use the viewer's browser time zon
 
 Update details are hidden initially. Use **Updates** beside **Export KML** to see the last update, scheduled update and **Update now** action. **Delete map** is the first map action and opens a confirmation dialog. Finished meetups are hidden from maps and exports; the list's **Show past meetups** toggle reveals their cards only. Community map cards use the group's locally cached Campfire icon when available.
 
-For maps you create yourself, open **Edit map** to upload a square image. PNG, JPEG, WebP and GIF files up to 5 MB are supported. Save changes to use it on the map card and beside the title, including the shared page. Community maps use their Campfire group logo. Images are stored locally.
+For maps you create yourself, open **Edit map** to upload a square image. PNG, JPEG, WebP and GIF files up to 5 MB are supported. Save changes to use it on the map card and beside the title, including the shared page. Community maps use their Campfire group logo. Images are resized to at most 500 × 500 pixels without cropping or enlarging them, then stored locally as WebP at up to 100 KB.
 
 Use **All Maps**, **Created Maps**, or **Community Maps** above the map cards to filter the list. Created maps include date maps you build from tracked communities. Community maps are the automatically created group maps.

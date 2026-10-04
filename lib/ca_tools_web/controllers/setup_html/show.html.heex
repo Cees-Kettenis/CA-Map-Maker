@@ -1,0 +1,33 @@
+<Layouts.app flash={@flash} current_scope={@current_scope} setup={true}>
+  <div class="atlas-auth space-y-6">
+    <p class="text-sm font-semibold opacity-60">Welcome to Pogo Meetups</p>
+    <%= if @state == :empty do %>
+      <h1 class="atlas-display text-3xl">Set up your administrator</h1>
+      <p class="text-sm opacity-70">
+        Enter your email. We'll send a link so you can choose your password and open the app.
+        This account manages users and shared Campfire access.
+      </p>
+      <.form for={@form} id="initial-setup-form" action={~p"/setup"} method="post">
+        <.input
+          field={@form[:email]}
+          type="email"
+          label="Your email"
+          autocomplete="email"
+          required
+        />
+        <.button variant="primary" class="w-full">Send password setup link</.button>
+      </.form>
+    <% else %>
+      <h1 class="atlas-display text-3xl">Check your inbox</h1>
+      <p class="text-sm opacity-70">
+        Follow your email link to choose your administrator password. The app will open once you finish.
+      </p>
+      <p class="text-sm opacity-70">
+        The link expires after one hour. Check your spam folder if it hasn't arrived.
+      </p>
+      <.link href={~p"/auth/users/reset-password"} class="btn btn-primary w-full">
+        Request a new link
+      </.link>
+    <% end %>
+  </div>
+</Layouts.app>

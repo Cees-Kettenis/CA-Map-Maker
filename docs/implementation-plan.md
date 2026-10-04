@@ -1,5 +1,7 @@
 # Campfire Map SaaS Implementation Plan
 
+Historical design notes: public signup and per-user tokens below have been superseded by admin-created accounts and one shared admin token. See [account setup](accounts.md) and [deployment](deployment.md) for current behavior.
+
 ## 1. Product Summary
 
 Build a Phoenix LiveView SaaS application where users can sign up, store their Campfire credentials securely, create maps from Niantic Campfire links, and share those maps publicly through the application.

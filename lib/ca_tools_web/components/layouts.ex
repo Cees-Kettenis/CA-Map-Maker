@@ -31,26 +31,32 @@ defmodule CAToolsWeb.Layouts do
     default: nil,
     doc: "the current [scope](https://hexdocs.pm/phoenix/scopes.html)"
 
+  attr :setup, :boolean, default: false
+
   slot :inner_block, required: true
 
   @spec app(map()) :: Phoenix.LiveView.Rendered.t()
   def app(assigns) do
     ~H"""
     <header class="atlas-nav">
-      <a href={~p"/"} class="atlas-brand" aria-label="Campfire Atlas home">
+      <a href={~p"/"} class="atlas-brand" aria-label="Pogo Meetups home">
         <span class="atlas-brand-mark"><.icon name="hero-map" class="size-5" /></span>
-        <span>campfire<span class="font-normal opacity-60"> atlas</span></span>
+        <span>Pogo<span class="font-normal opacity-60"> Meetups</span></span>
       </a>
       <nav aria-label="Main navigation" class="flex items-center gap-2 sm:gap-5 text-sm">
-        <%= if @current_scope do %>
+        <%= if @current_scope && !@setup do %>
           <.link navigate={~p"/dashboard/community"} class="nav-link">My Communities</.link>
           <.link navigate={~p"/dashboard/maps"} class="nav-link">My Maps</.link>
+          <.link :if={@current_scope.user.admin} navigate={~p"/dashboard/users"} class="nav-link">Accounts</.link>
           <.link navigate={~p"/auth/users/settings"} class="nav-link">Settings</.link>
           <.link href={~p"/auth/users/log-out"} method="delete" class="nav-link">Log out</.link>
         <% else %>
-          <.link navigate={~p"/auth/users/log-in"} class="nav-link">Log in</.link>
-          <.link navigate={~p"/auth/users/register"} class="btn btn-primary btn-sm">Get started
-          <.icon name="hero-arrow-up-right" class="size-4" /></.link>
+          <.link :if={!@setup} navigate={~p"/auth/users/log-in"} class="nav-link">Log in</.link>
+          <.link
+            :if={!@setup && CATools.Accounts.public_signup_enabled?()}
+            navigate={~p"/auth/users/register"}
+            class="btn btn-primary btn-sm"
+          >Get started <.icon name="hero-arrow-up-right" class="size-4" /></.link>
         <% end %>
         <span class="hidden md:block"><.theme_toggle /></span>
       </nav>
@@ -59,7 +65,7 @@ defmodule CAToolsWeb.Layouts do
       {render_slot(@inner_block)}
     </main>
     <footer class="atlas-footer">
-      <span>Campfire Atlas · Independent community tool</span>
+      <span>Pogo Meetups · Independent community tool</span>
     </footer>
 
     <.flash_group flash={@flash} />

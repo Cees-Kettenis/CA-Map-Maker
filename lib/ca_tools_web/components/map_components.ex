@@ -2,7 +2,7 @@ defmodule CAToolsWeb.MapComponents do
   @moduledoc "Shared geographic map and point components."
   use CAToolsWeb, :html
 
-  @external_resource Path.expand("../../../priv/static/images/atlas-map.svg", __DIR__)
+  @external_resource Path.expand("../../../priv/static/images/pogo-meetups-map.svg", __DIR__)
   @map_illustration File.read!(@external_resource)
 
   @doc "Renders the local SVG illustration inline so its route and pins can be animated."

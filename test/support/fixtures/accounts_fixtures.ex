@@ -41,6 +41,14 @@ defmodule CATools.AccountsFixtures do
     user
   end
 
+  @doc "Creates the single administrator in the test sandbox."
+  @spec admin_user_fixture(map()) :: CATools.Accounts.User.t()
+  def admin_user_fixture(attrs \\ %{}) do
+    user_fixture(attrs)
+    |> Ecto.Changeset.change(admin: true)
+    |> CATools.Repo.update!()
+  end
+
   def user_scope_fixture do
     user = user_fixture()
     user_scope_fixture(user)

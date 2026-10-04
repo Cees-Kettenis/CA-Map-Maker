@@ -7,6 +7,9 @@
 # General application configuration
 import Config
 
+config :ca_tools, :public_signup_enabled, false
+config :ca_tools, :initial_setup_enabled, true
+
 config :ca_tools, :scopes,
   accounts_user: [
     default: false,

@@ -11,6 +11,7 @@ defmodule CAToolsWeb.Router do
     plug :protect_from_forgery
     plug :put_secure_browser_headers
     plug :fetch_current_scope_for_user
+    plug :require_initial_setup
   end
 
   pipeline :api do
@@ -20,6 +21,8 @@ defmodule CAToolsWeb.Router do
   scope "/", CAToolsWeb do
     pipe_through :browser
 
+    get "/setup", SetupController, :show
+    post "/setup", SetupController, :create
     get "/", PageController, :home
     get "/media/meetups/:id", MeetupImageController, :show
     get "/maps/:slug/points", MapController, :public_points
@@ -64,6 +67,7 @@ defmodule CAToolsWeb.Router do
     pipe_through [:browser, :require_authenticated_user]
 
     put "/users/settings", UserSettingsController, :update
+    delete "/users/account", UserAccountController, :delete
   end
 
   scope "/auth", CAToolsWeb.Auth do
@@ -87,6 +91,14 @@ defmodule CAToolsWeb.Router do
       live "/community/maps/:id", MapLive.Public, :community
       live "/dashboard/maps", MapLive.Index, :index
       live "/dashboard/maps/:id", MapLive.Show, :show
+    end
+  end
+
+  scope "/", CAToolsWeb do
+    pipe_through [:browser, :require_authenticated_user, :require_admin]
+
+    live_session :admin_accounts, on_mount: [{CAToolsWeb.Auth.UserAuth, :require_admin}] do
+      live "/dashboard/users", Admin.Users, :index
     end
   end
 

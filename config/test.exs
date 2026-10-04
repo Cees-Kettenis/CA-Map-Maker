@@ -1,5 +1,10 @@
 import Config
 
+# Legacy signup flow tests explicitly exercise the optional signup mode.
+config :ca_tools, :public_signup_enabled, true
+# First-run tests explicitly enable the installation gate.
+config :ca_tools, :initial_setup_enabled, false
+
 # Only in tests, remove the complexity from the password hashing algorithm
 config :bcrypt_elixir, :log_rounds, 1
 

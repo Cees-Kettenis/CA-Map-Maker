@@ -51,7 +51,7 @@ defmodule CATools.Campfire.GraphQLClient do
   @spec fetch_resource(User.t(), LinkResolver.resolved_source(), keyword()) ::
           {:ok, normalized_resource()} | {:error, error_details()}
   def fetch_resource(user, resolved_source, opts \\ []) do
-    with {:ok, credentials} <- Accounts.get_user_campfire_credentials(user),
+    with {:ok, credentials} <- Accounts.shared_campfire_credentials(user),
          {:ok, token} <- extract_token(credentials),
          {:ok, response} <- request_resource(token, resolved_source, opts),
          {:ok, resource} <- normalize_response_body(response.body, resolved_source, token) do
@@ -86,7 +86,7 @@ defmodule CATools.Campfire.GraphQLClient do
     }
     """
 
-    with {:ok, credentials} <- Accounts.get_user_campfire_credentials(user),
+    with {:ok, credentials} <- Accounts.shared_campfire_credentials(user),
          {:ok, token} <- extract_token(credentials),
          {:ok, response} <-
            request_graphql(

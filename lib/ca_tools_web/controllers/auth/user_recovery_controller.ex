@@ -24,14 +24,26 @@ defmodule CAToolsWeb.Auth.UserRecoveryController do
   @doc "Changes the password with a recovery token and revokes sessions. OpenAPI: resetPassword."
   @spec reset(Plug.Conn.t(), map()) :: Plug.Conn.t()
   def reset(conn, %{"token" => token, "user" => attrs}) do
+    initial_setup? = Accounts.installation_state() == :pending
+
     with :ok <-
            RequestSecurity.check_limits([{:password_reset_ip, RequestSecurity.client_ip(conn)}]),
-         {:ok, {_user, tokens}} <- Accounts.reset_user_password(token, attrs) do
+         {:ok, {user, tokens}} <- Accounts.reset_user_password(token, attrs) do
       UserAuth.disconnect_sessions(tokens)
 
-      conn
-      |> put_flash(:info, "Password reset. Log in with your new password.")
-      |> redirect(to: ~p"/auth/users/log-in")
+      if initial_setup? do
+        conn
+        |> put_flash(
+          :info,
+          "Your administrator account is ready. Save the shared Campfire token below."
+        )
+        |> put_session(:user_return_to, ~p"/auth/users/settings")
+        |> UserAuth.log_in_user(user)
+      else
+        conn
+        |> put_flash(:info, "Password reset. Log in with your new password.")
+        |> redirect(to: ~p"/auth/users/log-in")
+      end
     else
       {:error, %Ecto.Changeset{}} ->
         conn

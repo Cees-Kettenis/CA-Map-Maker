@@ -4,7 +4,7 @@ Track multiple Campfire groups, then create a map of their meetups on a chosen d
 
 ## Connect your group
 
-1. Save your [Campfire token](campfire-credentials.md) in **Settings**.
+1. Ask the administrator to configure the [shared Campfire token](campfire-credentials.md).
 2. Open **My Communities**.
 3. Paste one group or invitation link per line and select **Track groups**.
 4. Select a group to manage its monitoring and private invitations.
@@ -21,7 +21,7 @@ The first check fetches the community and its upcoming events. Subsequent checks
 
 Use **Update now** for an immediate refresh. The update panel shows when data was last updated and when the next update is scheduled.
 
-Images are downloaded once per URL and served from local storage. Meetup cards and map popups show square cover photos and the host's name and profile picture when available. Meetups sharing a location appear in one popup with the next meetup first.
+Images are downloaded once per URL and served from local storage. Meetup cards and map popups show square cover photos and the host's name and profile picture when available. Meetups without a cover photo use their community's existing cached logo, including on maps that combine multiple communities. Newly imported pasted meetups can also use a tracked community logo through their Campfire group ID. Older pasted meetups need an update to record that ID. Meetups sharing a location appear in one popup with the next meetup first.
 
 Finished meetups leave map pins when their Campfire end time passes. They are hidden from meetup lists by default; select **Show past meetups** to see them again. Meetups without an end time remain visible.
 
@@ -50,7 +50,7 @@ in the Campfire group.
 
 Select **Revoke** beside an email to remove access. An open map checks access
 again every few seconds. Downloaded files remain with their recipients.
-Campfire Atlas does not send invitation emails; you send the link yourself.
+Pogo Meetups does not send invitation emails; you send the link yourself.
 
 ## Pause monitoring or change groups
 
@@ -62,5 +62,5 @@ Invite people again and send the new map link. The old map link stops working.
 Deleting a community or its group map stops monitoring, removes its invitations, and unlinks it from date maps. Add its link again to track it later.
 
 If a check fails, the message appears beside the group settings. Fix the link
-or replace your token as needed. Checks resume at the next interval. See
+or ask the administrator to replace the shared token as needed. Checks resume at the next interval. See
 [troubleshooting](troubleshooting.md) for import failures.

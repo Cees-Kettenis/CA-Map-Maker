@@ -1,10 +1,10 @@
 # Campfire credentials
 
-The app uses your Campfire token to fetch meetups and monitor groups your account can access. See [My Communities](my-community.md) to connect a group.
+The app uses one encrypted token from the administrator to fetch meetups and monitor groups that the shared Campfire account can access. Regular users cannot see, save, or delete this token. See [My Communities](my-community.md) to connect a group.
 
 ## Save a token
 
-1. Open **Settings**.
+1. Sign in as the administrator and open **Settings**.
 2. Paste your token into **Campfire token or Authorization header**.
 3. Select **Save Token**.
 

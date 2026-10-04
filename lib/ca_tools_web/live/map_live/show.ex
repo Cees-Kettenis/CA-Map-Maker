@@ -59,7 +59,7 @@ defmodule CAToolsWeb.MapLive.Show do
             class="size-4"
           /> Edit map</button><.link
             href={~p"/dashboard/maps/#{@map.id}/export.kml"}
-            download="campfire-map.kml"
+            download="pogo-meetups-map.kml"
             class="atlas-button"
           ><.icon name="hero-arrow-down-tray" class="size-4" /> Export KML</.link>
           <button
@@ -212,7 +212,8 @@ defmodule CAToolsWeb.MapLive.Show do
           images =
             if is_nil(socket.assigns.map.community) do
               consume_uploaded_entries(socket, :map_image, fn %{path: path}, _entry ->
-                {:ok, CATools.Maps.ImageCache.store_upload(path)}
+                {:ok,
+                 CATools.Maps.ImageCache.store_upload(path, socket.assigns.current_scope.user.id)}
               end)
             else
               []

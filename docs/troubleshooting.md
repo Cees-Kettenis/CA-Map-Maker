@@ -4,8 +4,8 @@ Check the error beside a source link in your owner map view.
 
 | Problem | What to do |
 | --- | --- |
-| No saved Campfire token | [Save a token](campfire-credentials.md), then retry failed links |
-| Campfire rejects the token | Replace it with a current token and retry |
+| No saved Campfire token | Ask the administrator to [save the shared token](campfire-credentials.md), then retry failed links |
+| Campfire rejects the token | Ask the administrator to replace it with a current token and retry |
 | Meetup is unavailable | Open it in Campfire with the same account; confirm it still exists and is accessible |
 | Missing or invalid coordinates | Check the meetup location in Campfire; retry after it is corrected |
 | Unsupported link | Use a [meetup or event link](creating-maps.md#supported-links), rather than a club link |

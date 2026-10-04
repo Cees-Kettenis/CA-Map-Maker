@@ -29,7 +29,7 @@ defmodule CAToolsWeb.MapController do
 
       map ->
         send_download(conn, {:binary, KML.generate(map)},
-          filename: "campfire-map.kml",
+          filename: "pogo-meetups-map.kml",
           content_type: "application/vnd.google-earth.kml+xml"
         )
     end
@@ -44,7 +44,7 @@ defmodule CAToolsWeb.MapController do
 
       map ->
         send_download(conn, {:binary, KML.generate(map, true)},
-          filename: "campfire-map.kml",
+          filename: "pogo-meetups-map.kml",
           content_type: "application/vnd.google-earth.kml+xml"
         )
     end

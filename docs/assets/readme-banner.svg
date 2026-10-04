@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1200" height="330" viewBox="0 0 1200 330" role="img" aria-labelledby="title desc">
-  <title id="title">Campfire Atlas</title>
+  <title id="title">Pogo Meetups</title>
   <desc id="desc">Campfire meetup links become community maps, illustrated with connected blue, violet, and coral map pins.</desc>
   <defs>
     <linearGradient id="banner-bg" x2="1" y2="1"><stop stop-color="#f5f6ff"/><stop offset="1" stop-color="#edf3ff"/></linearGradient>
@@ -21,7 +21,7 @@
     <g transform="translate(127 141) scale(1.92)" fill="none" stroke="#fff" stroke-width="2" stroke-linejoin="round">
       <path d="m0 4 8-4 10 4 8-4v22l-8 4-10-4-8 4zM8 0v22M18 4v22"/>
     </g>
-    <text x="232" y="167" font-family="Inter, DejaVu Sans, sans-serif" font-size="58" font-weight="750" letter-spacing="-2" fill="#24293d">campfire <tspan fill="#5263e5" font-weight="500">atlas</tspan></text>
+    <text x="232" y="167" font-family="Inter, DejaVu Sans, sans-serif" font-size="58" font-weight="750" letter-spacing="-2" fill="#24293d">Pogo <tspan fill="#5263e5" font-weight="500">Meetups</tspan></text>
     <text x="235" y="211" font-family="Inter, DejaVu Sans, sans-serif" font-size="21" fill="#626b83">Turn meetup links into community maps.</text>
     <g transform="rotate(3 942 166)">
       <rect x="749" y="32" width="386" height="267" rx="26" fill="#fff" filter="url(#banner-shadow)"/>

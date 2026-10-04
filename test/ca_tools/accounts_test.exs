@@ -99,7 +99,7 @@ defmodule CATools.AccountsTest do
 
   describe "Campfire credentials" do
     setup do
-      %{user: user_fixture()}
+      %{user: admin_user_fixture()}
     end
 
     test "validates supported token formats" do

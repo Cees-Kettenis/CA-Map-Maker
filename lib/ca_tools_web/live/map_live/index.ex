@@ -27,7 +27,7 @@ defmodule CAToolsWeb.MapLive.Index do
            }),
            as: "meetup"
          ),
-       token_saved?: Accounts.user_has_campfire_token?(scope.user),
+       token_saved?: Accounts.campfire_available?(),
        client_ip: RequestSecurity.live_client_ip(socket),
        map_form: to_form(Maps.change_map(scope), as: "map")
      )}
@@ -95,10 +95,15 @@ defmodule CAToolsWeb.MapLive.Index do
       >
         <div class="flex items-center gap-3">
           <.icon name="hero-key" class="size-5" />
-          <p class="text-sm">Save a Campfire token to import meetups.</p>
+          <p class="text-sm">
+            The administrator needs to configure shared Campfire access before imports can run.
+          </p>
         </div>
-        <.link navigate={~p"/auth/users/settings"} class="atlas-button">Set up token
-        <.icon name="hero-arrow-up-right" class="size-4" /></.link>
+        <.link
+          :if={@current_scope.user.admin}
+          navigate={~p"/auth/users/settings"}
+          class="atlas-button"
+        >Set up token <.icon name="hero-arrow-up-right" class="size-4" /></.link>
       </section>
       <div class="grid lg:grid-cols-[360px_1fr] gap-8 items-start">
         <section class="atlas-card atlas-create-card p-6">

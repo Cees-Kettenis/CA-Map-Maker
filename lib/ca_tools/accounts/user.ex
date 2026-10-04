@@ -7,6 +7,7 @@ defmodule CATools.Accounts.User do
   @type t :: %__MODULE__{
           id: integer() | nil,
           email: String.t() | nil,
+          admin: boolean(),
           password: String.t() | nil,
           hashed_password: String.t() | nil,
           encrypted_credentials: map() | nil,
@@ -17,6 +18,7 @@ defmodule CATools.Accounts.User do
 
   schema "users" do
     field :email, :string
+    field :admin, :boolean, default: false
     field :password, :string, virtual: true, redact: true
     field :hashed_password, :string, redact: true
     field :encrypted_credentials, :map, redact: true

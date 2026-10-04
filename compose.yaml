@@ -1,4 +1,4 @@
-name: campfire-atlas
+name: ${COMPOSE_PROJECT_NAME:-pogo-meetups}
 services:
   db:
     image: postgres:17.4-alpine
@@ -16,7 +16,7 @@ services:
       retries: 10
   app:
     build: .
-    image: campfire-atlas:local
+    image: pogo-meetups:local
     restart: unless-stopped
     init: true
     depends_on:

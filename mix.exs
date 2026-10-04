@@ -76,6 +76,7 @@ defmodule CATools.MixProject do
       {:gen_smtp, "~> 1.3",
        override: true, system_env: [{"ERL_COMPILER_OPTIONS", "[nowarn_deprecated_catch]"}]},
       {:req, "~> 0.5"},
+      {:vix, "~> 0.41"},
       {:oban, "~> 2.19"},
       {:xml_builder, "~> 2.2"},
       {:hammer, "~> 7.1"},

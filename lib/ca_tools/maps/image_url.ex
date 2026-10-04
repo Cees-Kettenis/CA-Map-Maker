@@ -4,7 +4,8 @@ defmodule CATools.Maps.ImageURL do
   @doc "Accepts only local cached image paths for rendering."
   @spec local(term()) :: String.t() | nil
   def local(value) do
-    if is_binary(value) and Regex.match?(~r/\A\/media\/meetups\/[0-9a-f]{64}\z/, value), do: value
+    if is_binary(value) and Regex.match?(~r/\A\/media\/meetups\/[0-9a-f]{64}(\?v=[12])?\z/, value),
+      do: value
   end
 
   @doc "Returns an HTTPS image URL without embedded credentials, or nil."

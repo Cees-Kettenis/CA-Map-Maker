@@ -26,7 +26,7 @@ defmodule CATools.Campfire.ImportJobTest do
   end
 
   test "imports a saved source through the worker and stores Campfire event fields" do
-    user = user_fixture()
+    user = admin_user_fixture()
 
     {:ok, user} =
       Accounts.update_user_campfire_token(user, %{"campfire_token_input" => "test-token"})
@@ -73,7 +73,7 @@ defmodule CATools.Campfire.ImportJobTest do
                   "avatarUrl" => "https://cdn.example.com/avatar.jpg"
                 },
                 "location" => "[101.6869,3.139]",
-                "club" => %{"name" => "City Raiders"},
+                "club" => %{"id" => "city", "name" => "City Raiders"},
                 "eventTime" => "2026-10-02T10:00:00.123Z"
               }
             }
@@ -90,6 +90,7 @@ defmodule CATools.Campfire.ImportJobTest do
     assert point.host_name == "Trainer Host"
     assert point.host_avatar_url == "https://cdn.example.com/avatar.jpg"
     assert point.group_name == "City Raiders"
+    assert point.club_id == "city"
     assert point.latitude == 3.139
     assert point.longitude == 101.6869
     assert point.starts_at == ~U[2026-10-02 10:00:00Z]
@@ -113,7 +114,7 @@ defmodule CATools.Campfire.ImportJobTest do
   end
 
   test "different source links to the same event produce one marker" do
-    user = user_fixture()
+    user = admin_user_fixture()
 
     {:ok, user} =
       Accounts.update_user_campfire_token(user, %{"campfire_token_input" => "test-token"})

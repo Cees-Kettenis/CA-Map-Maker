@@ -8,13 +8,16 @@ defmodule CAToolsWeb.Auth.UserLive.Recovery do
   @spec mount(map(), map(), Phoenix.LiveView.Socket.t()) :: {:ok, Phoenix.LiveView.Socket.t()}
   def mount(params, _session, socket) do
     token = params["token"]
-    valid? = if token, do: Accounts.get_user_by_password_reset_token(token) != nil, else: true
+    user = if token, do: Accounts.get_user_by_password_reset_token(token)
+    valid? = is_nil(token) or not is_nil(user)
+    setup? = user != nil and is_nil(user.hashed_password)
 
     {:ok,
      assign(socket,
        token: token,
        valid?: valid?,
-       page_title: "Reset password",
+       setup?: setup?,
+       page_title: if(setup?, do: "Set your password", else: "Reset password"),
        client_ip: RequestSecurity.live_client_ip(socket),
        form: to_form(%{}, as: "user")
      )}
@@ -28,7 +31,7 @@ defmodule CAToolsWeb.Auth.UserLive.Recovery do
     <Layouts.app flash={@flash} current_scope={@current_scope}>
       <div class="atlas-auth space-y-5">
         <h1 class="atlas-display text-2xl">
-          Reset password
+          {@page_title}
         </h1>
         <%= cond do %>
           <% !@valid? -> %>
@@ -59,7 +62,9 @@ defmodule CAToolsWeb.Auth.UserLive.Recovery do
               />
               <p class="text-xs opacity-60 mb-4">
                 At least 12 characters. Existing sessions will be signed out.
-              </p><.button variant="primary" class="w-full">Reset password</.button>
+              </p><.button variant="primary" class="w-full">{if @setup?,
+                do: "Set password",
+                else: "Reset password"}</.button>
             </.form>
           <% true -> %>
             <.form for={@form} id="request_reset_form" phx-submit="request_reset">

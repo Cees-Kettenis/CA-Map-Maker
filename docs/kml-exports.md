@@ -17,11 +17,11 @@ Neither export includes your Campfire token.
 ## Google My Maps
 
 Create or open a map in Google My Maps and use its import option to upload the
-downloaded `.kml` file. Campfire Atlas exports the file; you perform the import
+downloaded `.kml` file. Pogo Meetups exports the file; you perform the import
 manually.
 
 A downloaded file is a snapshot. Later imports, edits, or visibility changes
-in Campfire Atlas do not update that file. Export again to get the current
+in Pogo Meetups do not update that file. Export again to get the current
 locations.
 
 See [sharing](sharing-maps.md) to share a map that updates as imports finish.

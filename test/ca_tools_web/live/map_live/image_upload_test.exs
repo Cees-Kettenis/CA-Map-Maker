@@ -30,15 +30,17 @@ defmodule CAToolsWeb.MapLive.ImageUploadTest do
 
     saved = Maps.get_map(scope, map.id)
     assert saved.image_id
+    assert CATools.Repo.get_by!(Maps.ImageUpload, user_id: user.id, image_id: saved.image_id)
     url = Maps.image_url(saved)
-    assert {:ok, _, "image/png"} = Maps.ImageCache.file(saved.image_id)
+    assert {:ok, _, "image/webp"} = Maps.ImageCache.file(saved.image_id)
     assert has_element?(view, "img[src='#{url}']")
     {:ok, cards, _} = conn |> log_in_user(user) |> live(~p"/dashboard/maps")
     assert has_element?(cards, ".atlas-map-card img[src='#{url}']")
     refute has_element?(cards, ".atlas-map-card progress")
     {:ok, shared, _} = live(conn, ~p"/maps/#{map.public_slug}")
     assert has_element?(shared, "img[src='#{url}']")
-    assert get(conn, url) |> response(200) == png
+    assert {:ok, processed} = Maps.ImageProcessor.process(png)
+    assert get(conn, url) |> response(200) == processed
   end
 
   test "image uploads reject disguised HTML without saving it", %{conn: conn} do

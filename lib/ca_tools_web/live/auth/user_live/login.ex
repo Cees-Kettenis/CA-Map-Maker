@@ -81,7 +81,11 @@ defmodule CAToolsWeb.Auth.UserLive.Login do
             Log in only this time
           </.button>
         </.form>
-        <.link :if={!@current_scope} navigate={~p"/auth/users/register"} class="text-sm underline">
+        <.link
+          :if={!@current_scope && CATools.Accounts.public_signup_enabled?()}
+          navigate={~p"/auth/users/register"}
+          class="text-sm underline"
+        >
           Create an account
         </.link>
       </div>

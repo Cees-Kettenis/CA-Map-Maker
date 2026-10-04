@@ -59,9 +59,15 @@ config :ca_tools, Oban,
   plugins: [
     {Oban.Plugins.Pruner, max_age: 60 * 60 * 24 * 7},
     {Oban.Plugins.Lifeline, rescue_after: :timer.minutes(5)},
-    {Oban.Plugins.Cron, crontab: [{"* * * * *", CATools.Campfire.MaintenanceJob}]}
+    {Oban.Plugins.Cron,
+     crontab: [
+       {"* * * * *", CATools.Campfire.MaintenanceJob},
+       {"*/5 * * * *", CATools.Campfire.ImageMaintenanceJob},
+       {"0 3 * * *", CATools.Campfire.ImageMaintenanceJob, args: %{"prune" => true}}
+     ]}
   ],
   queues: [
+    images: 1,
     imports: oban_import_queue_limit,
     retries: oban_retry_queue_limit,
     maintenance: oban_maintenance_queue_limit

@@ -10,6 +10,7 @@ defmodule CATools.Maps.MapPoint do
           map: UserMap.t() | Ecto.Association.NotLoaded.t(),
           source: MapSource.t() | Ecto.Association.NotLoaded.t(),
           campfire_id: String.t() | nil,
+          club_id: String.t() | nil,
           group_name: String.t() | nil,
           title: String.t() | nil,
           description: String.t() | nil,
@@ -27,6 +28,7 @@ defmodule CATools.Maps.MapPoint do
 
   schema "map_points" do
     field :campfire_id, :string
+    field :club_id, :string
     field :group_name, :string
     field :title, :string
     field :description, :string

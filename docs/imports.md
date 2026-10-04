@@ -8,6 +8,8 @@ Creating a date map from communities refreshes the selected events' details. The
 
 Large automatic imports still process up to 50 links per account in each 10-minute scheduling window. This is a queue limit, not a recurring fetch interval. Failed event requests can retry up to three times. Finished meetups are excluded from automatic detail updates.
 
-Images are downloaded once per distinct URL. Viewing or refreshing a page uses the local copies. Failed image downloads are not retried automatically.
+Images are normally downloaded once per distinct URL and saved as WebP at up to 500 × 500 pixels, preserving their proportions. Downloads accept up to 5 MB; stored images must fit within 100 KB. Animated inputs use their first frame. Viewing or refreshing a page uses the local copies. Failed image downloads are not retried automatically.
 
-If your token expired, [replace it](campfire-credentials.md) before updating. See [troubleshooting](troubleshooting.md) for other failures.
+A daily cleanup removes images used only by meetups that ended more than 30 days ago. If no end time is available, the start time determines expiry. Images with no known event date stay available. Images shared with newer meetups, community logos and images attached to maps are kept. Expired meetups keep their details but may no longer display images. Importing an expired meetup does not download its images again. A newer meetup can reuse the URL and download it again when needed.
+
+If the shared token expired, ask the administrator to [replace it](campfire-credentials.md) before updating. See [troubleshooting](troubleshooting.md) for other failures.

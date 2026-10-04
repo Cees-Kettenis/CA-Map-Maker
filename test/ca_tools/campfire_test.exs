@@ -149,7 +149,7 @@ defmodule CATools.CampfireTest do
   describe "GraphQLClient.fetch_resource/3" do
     test "uses the saved Campfire token and returns the extracted resource" do
       user =
-        user_fixture()
+        admin_user_fixture()
         |> then(fn user ->
           {:ok, updated_user} =
             Accounts.update_user_campfire_token(user, %{
@@ -209,7 +209,7 @@ defmodule CATools.CampfireTest do
 
     test "returns graphql errors from the response body" do
       user =
-        user_fixture()
+        admin_user_fixture()
         |> then(fn user ->
           {:ok, updated_user} =
             Accounts.update_user_campfire_token(user, %{
@@ -243,7 +243,7 @@ defmodule CATools.CampfireTest do
 
   describe "GraphQL response failures" do
     test "handles rejected tokens, null events and mismatched IDs" do
-      user = user_fixture()
+      user = admin_user_fixture()
 
       {:ok, user} =
         Accounts.update_user_campfire_token(user, %{"campfire_token_input" => "saved-token"})
@@ -431,7 +431,7 @@ defmodule CATools.CampfireTest do
   describe "Importer.import_source/2" do
     test "imports a source, updates counters and can reimport without duplicates" do
       user =
-        user_fixture()
+        admin_user_fixture()
         |> then(fn user ->
           {:ok, updated_user} =
             Accounts.update_user_campfire_token(user, %{

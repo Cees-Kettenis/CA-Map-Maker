@@ -9,9 +9,7 @@ defmodule CATools.Accounts.UserNotifier do
     email =
       new()
       |> to(recipient)
-      |> from(
-        {"Campfire Atlas", Application.get_env(:ca_tools, :mail_from, "contact@example.com")}
-      )
+      |> from({"Pogo Meetups", Application.get_env(:ca_tools, :mail_from, "contact@example.com")})
       |> subject(subject)
       |> text_body(body)
 
@@ -60,9 +58,29 @@ defmodule CATools.Accounts.UserNotifier do
   def deliver_account_confirmation(user, url) do
     deliver(
       user.email,
-      "Confirm your Campfire Atlas account",
+      "Confirm your Pogo Meetups account",
       "Confirm your account by visiting:\n\n#{url}\n\nThis link expires in 24 hours."
     )
+  end
+
+  @doc "Welcomes an administrator-created user with a single-use password setup link."
+  @spec deliver_password_setup(User.t(), String.t()) :: {:ok, Swoosh.Email.t()} | {:error, term()}
+  def deliver_password_setup(user, url) do
+    access_instructions =
+      if user.admin,
+        do: "You will manage users and configure shared Campfire access after signing in.",
+        else: "You do not need a Campfire token; the administrator provides shared access."
+
+    deliver(user.email, "Set up your Pogo Meetups account", """
+    Your Pogo Meetups account is ready for password setup.
+
+    Choose your own password by visiting:
+
+    #{url}
+
+    This single-use link expires in one hour. If it expires, request a new link from Forgot password on the login page.
+    #{access_instructions}
+    """)
   end
 
   @doc "Sends a single-use password recovery link."
@@ -70,7 +88,7 @@ defmodule CATools.Accounts.UserNotifier do
   def deliver_password_reset(user, url) do
     deliver(
       user.email,
-      "Reset your Campfire Atlas password",
+      "Reset your Pogo Meetups password",
       "Reset your password by visiting:\n\n#{url}\n\nThis link expires in one hour. Ignore it if you did not request a reset."
     )
   end

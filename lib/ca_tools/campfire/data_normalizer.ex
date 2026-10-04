@@ -8,6 +8,7 @@ defmodule CATools.Campfire.DataNormalizer do
 
   @type map_point_attrs() :: %{
           required(:campfire_id) => String.t(),
+          required(:club_id) => String.t() | nil,
           required(:group_name) => String.t() | nil,
           required(:title) => String.t(),
           required(:description) => String.t() | nil,
@@ -48,6 +49,11 @@ defmodule CATools.Campfire.DataNormalizer do
          {:ok, normalized_title} <- normalize_title(title) do
       normalized_payload = %{
         campfire_id: graphql_resource.campfire_id,
+        club_id:
+          case resource["club"] do
+            %{"id" => id} -> string_or_nil(id)
+            _ -> nil
+          end,
         group_name: group_name(resource),
         title: normalized_title,
         description: string_or_nil(resource["details"] || resource["description"]),

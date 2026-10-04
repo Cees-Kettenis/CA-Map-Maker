@@ -13,4 +13,20 @@ defmodule CATools.Release do
         end)
     end)
   end
+
+  @doc "Bootstraps the sole administrator using ADMIN_PASSWORD and optional ADMIN_EMAIL from trusted release tooling. Resets an existing administrator's password."
+  @spec bootstrap_admin() :: :ok
+  def bootstrap_admin do
+    Application.load(:ca_tools)
+    {:ok, _} = Application.ensure_all_started(:bcrypt_elixir)
+    email = System.get_env("ADMIN_EMAIL", "cees9000@gmail.com")
+    password = System.fetch_env!("ADMIN_PASSWORD")
+
+    {:ok, {:ok, _admin}, _} =
+      Ecto.Migrator.with_repo(CATools.Repo, fn _repo ->
+        CATools.Accounts.bootstrap_admin(email, password)
+      end)
+
+    :ok
+  end
 end

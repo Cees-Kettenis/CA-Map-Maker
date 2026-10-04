@@ -173,8 +173,14 @@ defmodule CATools.Maps do
 
       _ ->
         case CATools.Maps.ImageCache.file(map.image_id) do
-          {:ok, _, _} -> "/media/meetups/#{map.image_id}"
-          :error -> nil
+          {:ok, _, _} ->
+            image = Repo.get!(CATools.Maps.CachedImage, map.image_id)
+
+            "/media/meetups/#{map.image_id}" <>
+              if(image.processing_version, do: "?v=#{image.processing_version}", else: "")
+
+          :error ->
+            nil
         end
     end
   end
@@ -675,10 +681,32 @@ defmodule CATools.Maps do
   @spec point_data(UserMap.t(), boolean()) :: [map()]
   def point_data(map, owner? \\ false) do
     now = DateTime.utc_now()
+    map_ids = Enum.map(map.points, & &1.map_id) |> Enum.reject(&is_nil/1) |> Enum.uniq()
+
+    club_ids = Enum.map(map.points, & &1.club_id) |> Enum.reject(&is_nil/1) |> Enum.uniq()
+
+    communities =
+      if map.user_id && (map_ids != [] or club_ids != []) do
+        Repo.all(
+          from c in CATools.Communities.Community,
+            where: (c.map_id in ^map_ids or c.club_id in ^club_ids) and c.user_id == ^map.user_id,
+            select: {c.map_id, c.club_id, c.avatar_url}
+        )
+      else
+        []
+      end
+
+    community_logos = Map.new(communities, fn {map_id, _club_id, url} -> {map_id, url} end)
+
+    club_logos =
+      communities
+      |> Enum.reject(fn {_map_id, club_id, _url} -> is_nil(club_id) end)
+      |> Map.new(fn {_map_id, club_id, url} -> {club_id, url} end)
 
     images =
       CATools.Maps.ImageCache.local_urls(
-        Enum.flat_map(map.points, &[&1.cover_photo_url, &1.host_avatar_url])
+        Enum.flat_map(map.points, &[&1.cover_photo_url, &1.host_avatar_url]) ++
+          Map.values(community_logos)
       )
 
     map.points
@@ -712,7 +740,14 @@ defmodule CATools.Maps do
 
       data =
         data
-        |> Map.put(:cover_photo_url, Map.get(images, point.cover_photo_url))
+        |> Map.put(
+          :cover_photo_url,
+          Map.get(
+            images,
+            CATools.Maps.ImageURL.normalize(point.cover_photo_url) ||
+              Map.get(community_logos, point.map_id) || Map.get(club_logos, point.club_id)
+          )
+        )
         |> Map.put(:host_avatar_url, Map.get(images, point.host_avatar_url))
 
       if owner?, do: Map.put(data, :source_url, point.source_url), else: data
