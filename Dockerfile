@@ -1,7 +1,8 @@
 # Same Elixir/OTP versions as .tool-versions; both stages use Alpine musl.
 ARG BUILDER_IMAGE=hexpm/elixir:1.20.2-erlang-29.0.4-alpine-3.22.5
 ARG RUNNER_IMAGE=alpine:3.22.5
-FROM ${BUILDER_IMAGE} AS builder
+# Cache dependency compilation separately from the refreshed release builder.
+FROM ${BUILDER_IMAGE} AS deps
 RUN apk upgrade --no-cache \
     && apk add --no-cache build-base git ca-certificates
 WORKDIR /app
@@ -10,6 +11,18 @@ RUN mix local.hex --force && mix local.rebar --force
 COPY mix.exs mix.lock ./
 COPY config/config.exs config/prod.exs config/
 RUN mix deps.get --only prod && mix deps.compile
+RUN mix assets.setup
+
+FROM ${BUILDER_IMAGE} AS builder
+RUN apk upgrade --no-cache \
+    && apk add --no-cache build-base git ca-certificates
+WORKDIR /app
+ENV MIX_ENV=prod
+COPY --from=deps /root/.mix /root/.mix
+COPY --from=deps /app/deps ./deps
+COPY --from=deps /app/_build ./_build
+COPY mix.exs mix.lock ./
+COPY config/config.exs config/prod.exs config/
 COPY lib lib
 COPY priv priv
 COPY assets assets
