@@ -4,14 +4,11 @@ Docker Compose runs a production Elixir release and PostgreSQL, serving HTTP at 
 
 ## Publish the image with GitHub Actions
 
-The private `curious-coder-fyi` repository publishes `ghcr.io/cees-kettenis/curious-code-pogo:latest`. Publication runs there so package permissions inherit a private repository. The public application workflow only tests and scans, with no registry-write permission.
+GitHub Actions publishes the public image `ghcr.io/cees-kettenis/pogo-meetups:latest`. Pushes to `main`, pull requests, weekly security refreshes and manual dispatch build native `linux/amd64` and `linux/arm64` images. Pull requests only test and scan. Both architectures must pass release smoke tests and Trivy gates before `latest` changes. Fixable HIGH/CRITICAL findings or scanner errors block publication. Full severity counts remain in the summaries, including unfixed vulnerabilities.
 
-Private CI builds native `linux/amd64` and `linux/arm64` images on infrastructure pushes, manual dispatch and weekly security refreshes. An hourly check notices new application commits and skips building an already published revision. Both architectures must pass the release smoke test and Trivy gate before `latest` changes. Fixable HIGH/CRITICAL findings and scanner errors block publication. Private CI retains full JSON reports; the public workflow only shows severity summaries and blocking findings.
+Every build pulls base images and reruns Alpine upgrades in builder/runtime stages. Other layers use architecture-specific registry build caches. The public image and caches contain application code and build dependencies; production credentials and data stay outside the build. CI never deploys automatically. The separate `curious-coder-fyi` infrastructure images remain private and require the Pi's encrypted GHCR login.
 
-Every build pulls base images and reruns Alpine upgrades in builder/runtime stages. Other layers use the private repository's BuildKit cache. CI never deploys automatically. To publish an application commit immediately, dispatch the private `Build and publish private Pogo image` workflow; otherwise the hourly check picks it up.
-
-On the Pi, authenticate with a classic GitHub token scoped only to `read:packages`. For encrypted credential storage use `Pi/setup-registry-login.sh` in the private `curious-coder-fyi` repository; see its `CI/README.md`. Otherwise `docker login ghcr.io -u Cees-Kettenis` uses Docker's default credential storage. Keep credentials outside `.env.docker` and Git. Existing public Docker Hub images are not deleted by this migration; make the old repository private or remove it separately if no longer needed.
-
+Pogo's public image can be pulled without authentication. Existing Docker Hub images are unchanged by this migration.
 
 Package upgrades use the configured Alpine release branch and the build fails if an upgrade fails. They do not guarantee that every reported vulnerability has an available fix. To refresh the entire dependency cache too, use a local full rebuild with `--no-cache`.
 
@@ -31,7 +28,7 @@ The Pi needs Docker with Compose, this `compose.yaml`, the `docker/postgres` ini
 cp .env.docker.example .env.docker
 ```
 
-Fill in `.env.docker`, using the default private `POGO_IMAGE`, or an image you have built/published yourself. Keep the existing values when updating a deployment. Generate the three application secrets separately for a new installation:
+Fill in `.env.docker`, using the default `POGO_IMAGE`, or an image you have built/published yourself. Keep the existing values when updating a deployment. Generate the three application secrets separately for a new installation:
 
 ```sh
 openssl rand -hex 24                 # POSTGRES_PASSWORD
