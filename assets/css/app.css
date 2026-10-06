@@ -265,7 +265,7 @@ body { display: flex; flex-direction: column; min-height: 100vh; min-height: 100
 }
 
 .atlas-meetup-image { display: block; width: 100%; height: auto; aspect-ratio: 1 / 1; object-fit: contain; border-radius: 10px; margin-bottom: 12px; }
-.atlas-popup .atlas-meetup-image { width: 240px; max-width: 100%; height: auto; aspect-ratio: 1 / 1; }
+.atlas-popup .atlas-meetup-image { width: 180px; max-width: 100%; height: auto; aspect-ratio: 1 / 1; margin: 0 auto 10px; }
 .atlas-meetup-image[hidden] { display: none; }
 
 .atlas-popup-meetup + .atlas-popup-meetup { margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--atlas-line); }

@@ -40,7 +40,7 @@ test('public link buttons copy without a visible URL field, including the clipbo
   }
 })
 
-function renderMarkers(points) {
+function renderMarkers(points, mapHeight = 510) {
   const markers = []
   globalThis.document = {
     createElement(tag) {
@@ -59,7 +59,7 @@ function renderMarkers(points) {
   AtlasMap.updatePoints.call({
     el: {querySelector() { return {textContent: JSON.stringify(points)} }},
     markers: {clearLayers() {}, getBounds() { return [] }},
-    map: {fitBounds() {}},
+    map: {fitBounds() {}, getSize() { return {y: mapHeight} }},
   })
   return markers
 }
@@ -87,6 +87,14 @@ test('meetups at the same coordinates share a marker with the next meetup first'
   assert.match(markers[0].options.icon.html, /atlas-pin-count">2/)
   assert.ok(markers[0].options.zIndexOffset > markers[1].options.zIndexOffset)
   assert.equal(markers[0].config.maxHeight, 420)
+})
+
+test('popup scrolling fits inside the mobile map at the initial zoom', () => {
+  for (const height of [380, 260, 510]) {
+    const [marker] = renderMarkers([meetup('Meetup', 101.68)], height)
+    assert.ok(marker.config.maxHeight <= height - 80)
+    assert.ok(marker.config.maxHeight <= 420)
+  }
 })
 
 test('popup cover photos load safely and missing photos do not hide meetup details', () => {

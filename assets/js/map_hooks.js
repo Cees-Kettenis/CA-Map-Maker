@@ -27,7 +27,16 @@ export const AtlasMap = {
     }).addTo(this.map)
     this.markers = window.L.featureGroup().addTo(this.map)
     this.updatePoints()
-    this.resizeObserver = new ResizeObserver(() => this.map.invalidateSize())
+    const resizePopup = () => {
+      if (!this.openPopup?.isOpen()) return
+      this.openPopup.options.maxHeight = Math.max(80, Math.min(420, this.map.getSize().y - 80))
+      this.openPopup.update()
+    }
+    this.map.on('popupopen', ({popup}) => { this.openPopup = popup; resizePopup() })
+    this.resizeObserver = new ResizeObserver(() => {
+      this.map.invalidateSize()
+      resizePopup()
+    })
     this.resizeObserver.observe(canvas)
   },
   updated() { this.updatePoints() },
@@ -94,7 +103,10 @@ export const AtlasMap = {
         zIndexOffset: (locations.size - index) * 100,
         icon: window.L.divIcon({className: '', iconSize: [28, 28], iconAnchor: [14, 28],
           html: `<div class="atlas-pin"><span>${index + 1}</span>${count}</div>`}),
-      }).bindPopup(popup, {maxWidth: 340, maxHeight: 420}).addTo(this.markers)
+      }).bindPopup(popup, {
+        maxWidth: 340,
+        maxHeight: Math.max(80, Math.min(420, this.map.getSize().y - 80)),
+      }).addTo(this.markers)
     })
     if (points.length) this.map.fitBounds(this.markers.getBounds(), {padding: [45, 45], maxZoom: 14})
   },
