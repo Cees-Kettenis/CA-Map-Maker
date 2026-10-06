@@ -1,0 +1,51 @@
+\getenv admin_password POSTGRES_PASSWORD
+\getenv app_password APP_DATABASE_PASSWORD
+BEGIN;
+-- PostgreSQL requires its bootstrap role to remain a superuser. Existing
+-- installations initialized with atlas must run this as a separate maintenance
+-- superuser, retaining the bootstrap identity under the administrator name.
+SELECT 'ALTER ROLE atlas RENAME TO atlas_admin'
+WHERE EXISTS (SELECT FROM pg_roles WHERE rolname = 'atlas' AND oid = 10)
+  AND NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'atlas_admin') \gexec
+SELECT 'CREATE ROLE atlas_admin LOGIN SUPERUSER'
+WHERE NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'atlas_admin') \gexec
+ALTER ROLE atlas_admin WITH LOGIN SUPERUSER PASSWORD :'admin_password';
+SELECT 'CREATE ROLE atlas LOGIN'
+WHERE NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'atlas') \gexec
+ALTER DATABASE ca_tools_prod OWNER TO atlas;
+-- Transfer only application objects in this database, never other databases,
+-- tablespaces, system catalogs, or extension implementation objects.
+SELECT format('ALTER SCHEMA %I OWNER TO atlas', nspname)
+FROM pg_namespace
+WHERE nspowner = (SELECT oid FROM pg_roles WHERE rolname = 'atlas_admin')
+  AND nspname !~ '^pg_' AND nspname <> 'information_schema' \gexec
+SELECT format('ALTER %s %I.%I OWNER TO atlas',
+  CASE c.relkind WHEN 'v' THEN 'VIEW' WHEN 'm' THEN 'MATERIALIZED VIEW'
+                 WHEN 'S' THEN 'SEQUENCE' WHEN 'f' THEN 'FOREIGN TABLE' ELSE 'TABLE' END,
+  n.nspname, c.relname)
+FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+WHERE c.relowner = (SELECT oid FROM pg_roles WHERE rolname = 'atlas_admin')
+  AND n.nspname !~ '^pg_' AND n.nspname <> 'information_schema'
+  AND c.relkind IN ('r', 'p', 'v', 'm', 'S', 'f')
+  AND NOT EXISTS (SELECT FROM pg_depend d WHERE d.classid = 'pg_class'::regclass
+                  AND d.objid = c.oid AND d.deptype = 'e')
+ORDER BY CASE WHEN c.relkind = 'S' THEN 1 ELSE 0 END \gexec
+SELECT format('ALTER %s %I.%I OWNER TO atlas',
+              CASE t.typtype WHEN 'd' THEN 'DOMAIN' ELSE 'TYPE' END, n.nspname, t.typname)
+FROM pg_type t JOIN pg_namespace n ON n.oid = t.typnamespace
+WHERE t.typowner = (SELECT oid FROM pg_roles WHERE rolname = 'atlas_admin')
+  AND n.nspname !~ '^pg_' AND n.nspname <> 'information_schema'
+  AND t.typtype IN ('e', 'd', 'c')
+  AND NOT EXISTS (SELECT FROM pg_depend d WHERE d.classid = 'pg_type'::regclass
+                  AND d.objid = t.oid AND d.deptype = 'e') \gexec
+SELECT format('ALTER %s %I.%I(%s) OWNER TO atlas',
+  CASE p.prokind WHEN 'p' THEN 'PROCEDURE' WHEN 'a' THEN 'AGGREGATE' ELSE 'FUNCTION' END,
+  n.nspname, p.proname, pg_get_function_identity_arguments(p.oid))
+FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+WHERE p.proowner = (SELECT oid FROM pg_roles WHERE rolname = 'atlas_admin')
+  AND n.nspname !~ '^pg_' AND n.nspname <> 'information_schema'
+  AND NOT EXISTS (SELECT FROM pg_depend d WHERE d.classid = 'pg_proc'::regclass
+                  AND d.objid = p.oid AND d.deptype = 'e') \gexec
+GRANT USAGE, CREATE ON SCHEMA public TO atlas;
+ALTER ROLE atlas WITH LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS PASSWORD :'app_password';
+COMMIT;

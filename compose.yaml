@@ -1,14 +1,23 @@
 name: ${COMPOSE_PROJECT_NAME:-pogo-meetups}
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
 services:
   db:
-    image: postgres:17.4-alpine
+    image: postgres:17.11-alpine
     restart: unless-stopped
     environment:
       POSTGRES_DB: ca_tools_prod
-      POSTGRES_USER: atlas
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env.docker}
+      POSTGRES_USER: atlas_admin
+      POSTGRES_PASSWORD: ${POSTGRES_ADMIN_PASSWORD:?Set POSTGRES_ADMIN_PASSWORD in .env.docker}
+      APP_DATABASE_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env.docker}
     volumes:
       - database:/var/lib/postgresql/data
+      - ./docker/postgres:/docker-entrypoint-initdb.d:ro
+    logging: *logging
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U atlas -d ca_tools_prod"]
       interval: 5s
@@ -18,6 +27,7 @@ services:
     image: ${DOCKERHUB_USERNAME:?Set DOCKERHUB_USERNAME in .env.docker}/pogo-meetups:latest
     restart: unless-stopped
     init: true
+    logging: *logging
     depends_on:
       db:
         condition: service_healthy

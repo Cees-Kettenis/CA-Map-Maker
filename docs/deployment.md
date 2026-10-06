@@ -27,7 +27,7 @@ Wait for the workflow to finish successfully before pulling the image. Use a 64-
 
 ## Start
 
-The Pi needs Docker with Compose, this `compose.yaml`, and a populated `.env.docker`. The application source and build tools are not needed.
+The Pi needs Docker with Compose, this `compose.yaml`, the `docker/postgres` initialization files, and a populated `.env.docker`. The application source and build tools are not needed.
 
 ```sh
 cp .env.docker.example .env.docker
@@ -37,6 +37,7 @@ Fill in `.env.docker`, including `DOCKERHUB_USERNAME` with the same username con
 
 ```sh
 openssl rand -hex 24                 # POSTGRES_PASSWORD
+openssl rand -hex 24                 # POSTGRES_ADMIN_PASSWORD, different from the app password
 openssl rand -base64 64 | tr -d '\n' # SECRET_KEY_BASE
 openssl rand -base64 32              # CREDENTIALS_MASTER_KEY_BASE64
 ```
@@ -94,6 +95,8 @@ APP_PORT=5000
 
 Recreate the app with `docker compose --env-file .env.docker up -d --no-build --wait app`. New email and sharing links use `https://cameetup.curious-code.fyi` without a port number. Request a new email after updating; existing emails retain their old links.
 
+`PUBLIC_SCHEME=https` also enables the browser session cookie's `Secure` flag at runtime, including when Nginx connects to the app over HTTP. Keep `PUBLIC_SCHEME=http` for standalone HTTP deployments. Both HTTP sessions and LiveView use the same runtime settings.
+
 Database migrations run before the application starts. The application runs as an unprivileged user. The final Alpine image contains the compiled release and runtime libraries; build tools and source files stay in the build stage.
 
 ## Updates and persistence
@@ -110,6 +113,16 @@ To back up the database:
 ```sh
 docker compose --env-file .env.docker exec -T db pg_dump -U atlas -Fc ca_tools_prod > pogo-meetups.dump
 ```
+
+### Database maintenance and existing deployments
+
+Compose uses PostgreSQL 17.11 and separate `atlas_admin` and `atlas` accounts. The administrator credential stays in the database container; the application receives only `POSTGRES_PASSWORD`. `atlas` owns `ca_tools_prod` so ordinary schema migrations and trusted extensions work, but cannot administer roles, create databases, replicate, or bypass row-level security. Logs for the app and database rotate at 10 MiB with three files retained per container.
+
+The initialization script configures these roles only on a new database volume. Existing volumes must be backed up and configured once before changing database credentials or replacing the container. Changing `POSTGRES_USER` in Compose does not modify an initialized database. The Pi setup repository's `Pi/deploy-pogo.py` coordinates the encrypted backup, existing-role setup, PostgreSQL 17 patch update, and proxy integration. Do not delete a volume to trigger initialization.
+
+PostgreSQL's original bootstrap role must remain a superuser. The Pi installer temporarily connects through a separate maintenance superuser, renames the original `atlas` bootstrap role to `atlas_admin`, and creates a new restricted `atlas` login with the unchanged app password. `docker/postgres/roles.sql.in` transfers the application's tables, sequences, types, functions, and schema ownership transactionally, without transferring other databases, tablespaces, system catalogs, or extension implementation objects. The temporary maintenance login is removed afterward. Never substitute the administrator password into the application's `DATABASE_URL`.
+
+PostgreSQL 17 patch releases reuse the existing data directory. Review intervening release notes for maintenance requirements and verify a backup before upgrading. PostgreSQL 18 is stable and the driver supports modern PostgreSQL versions, but moving from 17 to 18 requires a separate major-version migration.
 
 ## Bring your existing maps
 

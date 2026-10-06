@@ -8,13 +8,12 @@ defmodule CAToolsWeb.Endpoint do
     store: :cookie,
     key: "_ca_tools_key",
     signing_salt: "Y8sXyNTt",
-    same_site: "Lax",
-    secure: Application.compile_env(:ca_tools, :secure_cookies, false)
+    same_site: "Lax"
   ]
 
   socket "/live", Phoenix.LiveView.Socket,
-    websocket: [connect_info: [session: @session_options, peer_data: true]],
-    longpoll: [connect_info: [session: @session_options, peer_data: true]]
+    websocket: [connect_info: [session: {__MODULE__, :session_options, []}, peer_data: true]],
+    longpoll: [connect_info: [session: {__MODULE__, :session_options, []}, peer_data: true]]
 
   # Serve at "/" the static files from "priv/static" directory.
   #
@@ -52,6 +51,18 @@ defmodule CAToolsWeb.Endpoint do
 
   plug Plug.MethodOverride
   plug Plug.Head
-  plug Plug.Session, @session_options
+  plug :session
   plug CAToolsWeb.Router
+
+  @doc "Returns session settings for the configured public HTTP or HTTPS deployment."
+  @spec session_options() :: keyword()
+  def session_options do
+    Keyword.put(@session_options, :secure, Application.get_env(:ca_tools, :secure_cookies, false))
+  end
+
+  @doc "Initializes HTTP sessions with the same runtime cookie settings as LiveView."
+  @spec session(Plug.Conn.t(), keyword()) :: Plug.Conn.t()
+  def session(conn, _opts) do
+    Plug.Session.call(conn, Plug.Session.init(session_options()))
+  end
 end

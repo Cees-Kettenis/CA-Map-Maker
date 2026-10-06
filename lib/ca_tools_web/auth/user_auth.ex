@@ -14,8 +14,7 @@ defmodule CAToolsWeb.Auth.UserAuth do
   @remember_me_options [
     sign: true,
     max_age: @max_cookie_age_in_days * 24 * 60 * 60,
-    same_site: "Lax",
-    secure: Application.compile_env(:ca_tools, :secure_cookies, false)
+    same_site: "Lax"
   ]
 
   # How old the session token should be before a new one is issued. When a request is made
@@ -58,7 +57,10 @@ defmodule CAToolsWeb.Auth.UserAuth do
 
     conn
     |> renew_session(nil)
-    |> delete_resp_cookie(@remember_me_cookie, @remember_me_options)
+    |> delete_resp_cookie(
+      @remember_me_cookie,
+      Keyword.put(@remember_me_options, :secure, CAToolsWeb.Endpoint.session_options()[:secure])
+    )
     |> redirect(to: ~p"/")
   end
 
@@ -154,7 +156,11 @@ defmodule CAToolsWeb.Auth.UserAuth do
   defp write_remember_me_cookie(conn, token) do
     conn
     |> put_session(:user_remember_me, true)
-    |> put_resp_cookie(@remember_me_cookie, token, @remember_me_options)
+    |> put_resp_cookie(
+      @remember_me_cookie,
+      token,
+      Keyword.put(@remember_me_options, :secure, CAToolsWeb.Endpoint.session_options()[:secure])
+    )
   end
 
   defp put_token_in_session(conn, token) do

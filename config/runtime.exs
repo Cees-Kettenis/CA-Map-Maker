@@ -162,6 +162,13 @@ if config_env() == :prod do
   end
 
   host = System.get_env("PHX_HOST") || "localhost"
+  public_scheme = System.get_env("PUBLIC_SCHEME", "http")
+
+  unless public_scheme in ["http", "https"] do
+    raise "PUBLIC_SCHEME must be http or https"
+  end
+
+  config :ca_tools, :secure_cookies, public_scheme == "https"
 
   config :ca_tools, :dns_cluster_query, System.get_env("DNS_CLUSTER_QUERY")
 
@@ -169,7 +176,7 @@ if config_env() == :prod do
     url: [
       host: host,
       port: String.to_integer(System.get_env("PUBLIC_PORT", System.get_env("PORT", "5000"))),
-      scheme: System.get_env("PUBLIC_SCHEME", "http")
+      scheme: public_scheme
     ],
     http: [
       # Enable IPv6 and bind on all interfaces.
