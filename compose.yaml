@@ -15,8 +15,7 @@ services:
       timeout: 5s
       retries: 10
   app:
-    build: .
-    image: pogo-meetups:local
+    image: ${DOCKERHUB_USERNAME:?Set DOCKERHUB_USERNAME in .env.docker}/pogo-meetups:latest
     restart: unless-stopped
     init: true
     depends_on:

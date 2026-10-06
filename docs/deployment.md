@@ -2,13 +2,28 @@
 
 Docker Compose runs a production Elixir release and PostgreSQL, serving HTTP at `http://localhost:5000`. You do not need Elixir, Node or PostgreSQL installed on the host.
 
+## Publish the image with GitHub Actions
+
+Create a public repository named `pogo-meetups` under your Docker Hub account. In this GitHub repository, open **Settings → Secrets and variables → Actions → New repository secret** and add:
+
+| Secret | Value |
+| --- | --- |
+| `DOCKERHUB_USERNAME` | Your Docker Hub username, not your email address. |
+| `DOCKERHUB_TOKEN` | A Docker Hub personal access token with Read & Write permission. |
+
+The [publish workflow](../.github/workflows/docker-publish.yml) builds `linux/amd64` and `linux/arm64` images and publishes `YOUR_USERNAME/pogo-meetups:latest` on every push, including pushes to other branches and tags. A newer push cancels an older build. You can also run **Publish Docker image** manually from the Actions tab after configuring the secrets. See [Docker's multi-platform workflow documentation](https://docs.docker.com/build/ci/github-actions/multi-platform/).
+
+Wait for the workflow to finish successfully before pulling the image. Use a 64-bit operating system on the Raspberry Pi for the ARM64 image. Docker selects the matching architecture automatically. Builds run on GitHub; the Pi only pulls and runs the release.
+
 ## Start
+
+The Pi needs Docker with Compose, this `compose.yaml`, and a populated `.env.docker`. The application source and build tools are not needed.
 
 ```sh
 cp .env.docker.example .env.docker
 ```
 
-Fill in `.env.docker`. Generate the three secrets separately:
+Fill in `.env.docker`, including `DOCKERHUB_USERNAME` with the same username configured in GitHub. Keep the existing values when updating a deployment. Generate the three application secrets separately for a new installation:
 
 ```sh
 openssl rand -hex 24                 # POSTGRES_PASSWORD
@@ -50,7 +65,7 @@ Every user can delete their own account after recent authentication and typing t
 Keep `PHX_HOST=localhost` and `APP_PORT=5000` for local use. Stop the local Phoenix server if it already uses port 5000. Then run:
 
 ```sh
-docker compose --env-file .env.docker up -d --build --wait --remove-orphans
+docker compose --env-file .env.docker up -d --pull always --no-build --wait --remove-orphans
 docker compose --env-file .env.docker logs -f app
 ```
 
@@ -67,17 +82,18 @@ PUBLIC_PORT=443
 APP_PORT=5000
 ```
 
-Rebuild and recreate the app with `docker compose --env-file .env.docker up -d --build --wait app`. New email and sharing links use `https://cameetup.curious-code.fyi` without a port number. Request a new email after updating; existing emails retain their old links.
+Recreate the app with `docker compose --env-file .env.docker up -d --no-build --wait app`. New email and sharing links use `https://cameetup.curious-code.fyi` without a port number. Request a new email after updating; existing emails retain their old links.
 
 Database migrations run before the application starts. The application runs as an unprivileged user. The final Alpine image contains the compiled release and runtime libraries; build tools and source files stay in the build stage.
 
 ## Updates and persistence
 
 ```sh
-docker compose --env-file .env.docker up -d --build --wait
+docker compose --env-file .env.docker pull app
+docker compose --env-file .env.docker up -d --no-build --wait
 ```
 
-Named volumes preserve PostgreSQL data, local meetup images across container replacements. Keep `.env.docker` and its encryption key across restarts. Back up the database, image files and deployment secrets together. `docker compose down` preserves volumes; `down -v` deletes them.
+After a successful GitHub build, these commands pull the new application image and recreate the containers. Named volumes preserve PostgreSQL data and local meetup images across container replacements. Keep `.env.docker` and its encryption key across restarts. Back up the database, image files and deployment secrets together. `docker compose down` preserves volumes; `down -v` deletes them.
 
 To back up the database:
 
@@ -95,7 +111,8 @@ The container starts with a separate database; it does not automatically move yo
 ```sh
 docker compose --env-file .env.docker up -d db
 docker compose --env-file .env.docker exec -T db pg_restore -U atlas -d ca_tools_prod --no-owner --no-acl < existing.dump
-docker compose --env-file .env.docker up -d --build --wait
+docker compose --env-file .env.docker pull app
+docker compose --env-file .env.docker up -d --no-build --wait
 ```
 
 Restore into the empty Docker database before starting the app for the first time. If it already contains a new installation, use a fresh deployment database rather than merging the two.
@@ -118,4 +135,4 @@ Leaflet is bundled locally. OpenStreetMap remains the default tile provider; use
 
 Vix runs libvips inside the application through its Elixir API. No separate image service is required. Its bundled native binaries support ARM64 Linux, including Alpine. Image downloads and migration jobs use a single-worker Oban `images` queue. Images are upgraded in batches of 20 every five minutes. Previously resized remote images are downloaded once more to recover their original detail; uploads use the available local copy without enlargement. If an upgrade download fails, the existing image stays available and the upgrade is not retried automatically. Cleanup runs daily at 03:00 UTC and preserves images referenced by recent meetups, communities or maps. Unreferenced files have a one-day grace period to allow uploads to finish attaching to their maps.
 
-The default Compose project and image names are `pogo-meetups`. For an existing deployment created under the previous name, set `COMPOSE_PROJECT_NAME=campfire-atlas` in `.env.docker` before upgrading to keep using its database and image volumes.
+The default Compose project name is `pogo-meetups`, and the application image is `YOUR_USERNAME/pogo-meetups:latest`. For an existing deployment created under the previous name, set `COMPOSE_PROJECT_NAME=campfire-atlas` in `.env.docker` before upgrading to keep using its database and image volumes.
