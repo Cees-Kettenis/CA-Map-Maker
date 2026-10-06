@@ -40,7 +40,7 @@ test('public link buttons copy without a visible URL field, including the clipbo
   }
 })
 
-function renderMarkers(points, mapHeight = 510) {
+function renderMarkers(points, mapHeight = 510, mapWidth = 1200) {
   const markers = []
   globalThis.document = {
     createElement(tag) {
@@ -59,7 +59,7 @@ function renderMarkers(points, mapHeight = 510) {
   AtlasMap.updatePoints.call({
     el: {querySelector() { return {textContent: JSON.stringify(points)} }},
     markers: {clearLayers() {}, getBounds() { return [] }},
-    map: {fitBounds() {}, getSize() { return {y: mapHeight} }},
+    map: {fitBounds() {}, getSize() { return {x: mapWidth, y: mapHeight} }},
   })
   return markers
 }
@@ -94,6 +94,19 @@ test('popup scrolling fits inside the mobile map at the initial zoom', () => {
     const [marker] = renderMarkers([meetup('Meetup', 101.68)], height)
     assert.ok(marker.config.maxHeight <= height - 80)
     assert.ok(marker.config.maxHeight <= 420)
+  }
+})
+
+test('long descriptions remain complete and popup widths fit narrow mobile maps', () => {
+  const description = 'Campfire event details\n\n'.repeat(100)
+  for (const width of [280, 333, 1200]) {
+    const [marker] = renderMarkers([meetup('Long meetup', 101.68, {
+      description, address: 'Meetup venue', campfire_url: 'https://campfire.nianticlabs.com',
+    })], 380, width)
+    const content = marker.popup.children[0].children
+    assert.equal(content.find(child => child.textContent === description).textContent, description)
+    assert.equal(content.at(-1).textContent, 'View on Campfire')
+    assert.ok(marker.config.minWidth <= width - 70)
   }
 })
 

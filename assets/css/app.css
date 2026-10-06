@@ -126,9 +126,10 @@ body { display: flex; flex-direction: column; min-height: 100vh; min-height: 100
 .atlas-map-art { background-color: #e9edf3; background-image: url('/images/pogo-meetups-map.svg'); background-size: cover; background-position: center; }
 .atlas-pin { width: 28px; height: 28px; display: grid; place-items: center; border-radius: 50% 50% 50% 0; transform: rotate(-45deg); background: #2563eb; color: white; border: 2px solid white; box-shadow: 0 3px 10px #18181b40; }
 .atlas-pin span { transform: rotate(45deg); font-size: 10px; }
-.atlas-popup { max-width: 250px; }
+.atlas-popup { max-width: 250px; overflow-wrap: anywhere; }
 .atlas-popup h3 { font-weight: 700; margin-bottom: 5px; }
-.atlas-popup p { margin: 5px 0; white-space: pre-wrap; }
+.atlas-map .atlas-popup p { margin: 6px 0; white-space: pre-wrap; }
+.atlas-map .leaflet-popup-content { overscroll-behavior: contain; touch-action: pan-y; }
 .atlas-popup a { color: #2563eb; text-decoration: underline; }
 .atlas-empty { padding: 55px 30px; text-align: center; border: 1px dashed var(--atlas-line); border-radius: 20px; }
 .atlas-status { border-radius: 999px; padding: 4px 9px; font-size: 10px; font-weight: 700; background: var(--atlas-status-bg); color: var(--atlas-muted); }
@@ -140,6 +141,7 @@ body { display: flex; flex-direction: column; min-height: 100vh; min-height: 100
 .input, .textarea, .select { background: var(--atlas-card); border-color: var(--atlas-line); }
 :focus-visible { outline: 2px solid var(--atlas-accent); outline-offset: 3px; }
 @media (max-width: 640px) { .atlas-nav { padding: 18px 20px; flex-wrap: wrap; } .atlas-nav nav { margin-left: auto; } .atlas-brand { font-size: 18px; } .atlas-main { padding: 32px 20px 48px; } .atlas-footer { padding: 20px; flex-direction: column; } .atlas-map { height: 380px; } }
+@media (max-width: 640px) { .atlas-nav-compact { padding-top: 10px; padding-bottom: 10px; } .atlas-main-compact { padding-top: 12px; } }
 #flash-info, #flash-error { top: auto; bottom: 24px; right: 24px; max-width: calc(100vw - 48px); z-index: 1000; }
 
 .atlas-dashboard-hero {
@@ -265,7 +267,7 @@ body { display: flex; flex-direction: column; min-height: 100vh; min-height: 100
 }
 
 .atlas-meetup-image { display: block; width: 100%; height: auto; aspect-ratio: 1 / 1; object-fit: contain; border-radius: 10px; margin-bottom: 12px; }
-.atlas-popup .atlas-meetup-image { width: 180px; max-width: 100%; height: auto; aspect-ratio: 1 / 1; margin: 0 auto 10px; }
+.atlas-popup .atlas-meetup-image { width: 160px; max-width: 100%; height: auto; aspect-ratio: 1 / 1; margin: 0 auto 8px; }
 .atlas-meetup-image[hidden] { display: none; }
 
 .atlas-popup-meetup + .atlas-popup-meetup { margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--atlas-line); }

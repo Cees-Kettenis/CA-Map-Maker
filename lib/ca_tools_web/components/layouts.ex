@@ -32,13 +32,14 @@ defmodule CAToolsWeb.Layouts do
     doc: "the current [scope](https://hexdocs.pm/phoenix/scopes.html)"
 
   attr :setup, :boolean, default: false
+  attr :compact, :boolean, default: false, doc: "uses tighter mobile spacing on map pages"
 
   slot :inner_block, required: true
 
   @spec app(map()) :: Phoenix.LiveView.Rendered.t()
   def app(assigns) do
     ~H"""
-    <header class="atlas-nav">
+    <header class={["atlas-nav", @compact && "atlas-nav-compact"]}>
       <a href={~p"/"} class="atlas-brand" aria-label="Pogo Meetups home">
         <span class="atlas-brand-mark"><.icon name="hero-map" class="size-5" /></span>
         <span>Pogo<span class="font-normal opacity-60"> Meetups</span></span>
@@ -61,7 +62,7 @@ defmodule CAToolsWeb.Layouts do
         <span class="hidden md:block"><.theme_toggle /></span>
       </nav>
     </header>
-    <main class="atlas-main">
+    <main class={["atlas-main", @compact && "atlas-main-compact"]}>
       {render_slot(@inner_block)}
     </main>
     <footer class="atlas-footer">

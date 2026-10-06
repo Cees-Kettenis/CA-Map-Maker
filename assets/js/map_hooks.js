@@ -30,6 +30,7 @@ export const AtlasMap = {
     const resizePopup = () => {
       if (!this.openPopup?.isOpen()) return
       this.openPopup.options.maxHeight = Math.max(80, Math.min(420, this.map.getSize().y - 80))
+      this.openPopup.options.minWidth = Math.max(50, Math.min(250, this.map.getSize().x - 70))
       this.openPopup.update()
     }
     this.map.on('popupopen', ({popup}) => { this.openPopup = popup; resizePopup() })
@@ -105,6 +106,7 @@ export const AtlasMap = {
           html: `<div class="atlas-pin"><span>${index + 1}</span>${count}</div>`}),
       }).bindPopup(popup, {
         maxWidth: 340,
+        minWidth: Math.max(50, Math.min(250, this.map.getSize().x - 70)),
         maxHeight: Math.max(80, Math.min(420, this.map.getSize().y - 80)),
       }).addTo(this.markers)
     })
