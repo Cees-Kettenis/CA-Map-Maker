@@ -71,7 +71,8 @@ Every user can delete their own account after recent authentication and typing t
 Keep `PHX_HOST=localhost` and `APP_PORT=5000` for local use. Stop the local Phoenix server if it already uses port 5000. Then run:
 
 ```sh
-docker compose --env-file .env.docker up -d --pull always --no-build --wait --remove-orphans
+docker compose --env-file .env.docker pull app
+docker compose --env-file .env.docker up -d --pull missing --no-build --wait --remove-orphans
 docker compose --env-file .env.docker logs -f app
 ```
 
@@ -98,10 +99,10 @@ Database migrations run before the application starts. The application runs as a
 
 ```sh
 docker compose --env-file .env.docker pull app
-docker compose --env-file .env.docker up -d --no-build --wait
+docker compose --env-file .env.docker up -d --no-deps --no-build --pull never --wait app
 ```
 
-After a successful GitHub build, these commands pull the new application image and recreate the containers. Named volumes preserve PostgreSQL data and local meetup images across container replacements. Keep `.env.docker` and its encryption key across restarts. Back up the database, image files and deployment secrets together. `docker compose down` preserves volumes; `down -v` deletes them.
+After a successful GitHub build, these commands pull and recreate only the application container. Named volumes preserve PostgreSQL data and local meetup images across container replacements. Keep `.env.docker` and its encryption key across restarts. Back up the database, image files and deployment secrets together. `docker compose down` preserves volumes; `down -v` deletes them.
 
 To back up the database:
 
@@ -130,7 +131,7 @@ The container starts with a separate database; it does not automatically move yo
 docker compose --env-file .env.docker up -d db
 docker compose --env-file .env.docker exec -T db pg_restore -U atlas -d ca_tools_prod --no-owner --no-acl < existing.dump
 docker compose --env-file .env.docker pull app
-docker compose --env-file .env.docker up -d --no-build --wait
+docker compose --env-file .env.docker up -d --no-deps --no-build --pull never --wait app
 ```
 
 Restore into the empty Docker database before starting the app for the first time. If it already contains a new installation, use a fresh deployment database rather than merging the two.
