@@ -1,47 +1,116 @@
-name: Publish Docker image
-
+name: Build, scan and publish private Pogo image
 on:
   push:
+    branches: [main]
+  pull_request:
+    branches: [main]
   workflow_dispatch:
-
+  schedule:
+    - cron: '45 18 * * 0'
 permissions:
   contents: read
-
 concurrency:
-  group: dockerhub-latest
-  cancel-in-progress: true
-
+  group: ghcr-pogo-${{ github.ref }}
+  cancel-in-progress: false
 jobs:
-  publish:
-    runs-on: ubuntu-latest
-    timeout-minutes: 90
+  build:
+    name: Build and scan ${{ matrix.arch }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {arch: amd64, runner: ubuntu-latest}
+          - {arch: arm64, runner: ubuntu-24.04-arm}
+    env:
+      IMAGE: ghcr.io/cees-kettenis/pogo-meetups
+      TRIVY_IMAGE: aquasec/trivy:0.75.0@sha256:af6acf9a6b85dfe389a1941505c0ce9efef52a4719635e1a962f022a3d855daa
     steps:
-      - name: Check out source
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-
-      - name: Set up ARM emulation
-        uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4
-        with:
-          platforms: arm64
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4
-
-      - name: Log in to Docker Hub
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Verify private registry destination
+        if: ${{ github.event_name != 'pull_request' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 scripts/ci/check-package.py pogo-meetups --allow-missing
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4
+      - name: Log in to private GHCR for build cache
+        if: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/main' }}
         uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4
         with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
-
-      - name: Build and publish latest
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+      - name: Build native image with refreshed security packages
         uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7
         with:
           context: .
-          platforms: linux/amd64,linux/arm64
-          # Always refresh base images and execute both stages' package upgrades.
+          platforms: linux/${{ matrix.arch }}
           pull: true
           no-cache-filters: builder,runner
-          push: true
-          tags: ${{ secrets.DOCKERHUB_USERNAME }}/pogo-meetups:latest
-          cache-from: type=registry,ref=${{ secrets.DOCKERHUB_USERNAME }}/pogo-meetups:buildcache
-          cache-to: type=registry,ref=${{ secrets.DOCKERHUB_USERNAME }}/pogo-meetups:buildcache,mode=max
+          load: true
+          tags: ci-pogo-meetups:check
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+          cache-from: ${{ github.event_name != 'pull_request' && format('type=registry,ref={0}:buildcache-{1}', env.IMAGE, matrix.arch) || '' }}
+          cache-to: ${{ github.event_name != 'pull_request' && format('type=registry,ref={0}:buildcache-{1},mode=max', env.IMAGE, matrix.arch) || '' }}
+      - name: Verify release starts with its runtime libraries
+        run: |
+          docker run --rm --entrypoint /app/bin/ca_tools \
+            -e CREDENTIALS_MASTER_KEY_BASE64=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA= \
+            -e DATABASE_URL=ecto://ci:ci@127.0.0.1/ci \
+            -e SECRET_KEY_BASE=ci-only-placeholder-0000000000000000000000000000000000000000000000 \
+            -e SMTP_HOST=localhost -e SMTP_USERNAME=ci -e SMTP_PASSWORD=ci -e MAIL_FROM=ci@example.invalid \
+            ci-pogo-meetups:check eval 'IO.puts(System.version())'
+      - name: Trivy publication gate
+        run: bash scripts/ci/scan-image.sh ci-pogo-meetups:check
+      - name: Publish tested architecture for manifest assembly
+        if: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/main' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          docker tag ci-pogo-meetups:check "$IMAGE:ci-$GITHUB_RUN_ID-${{ matrix.arch }}"
+          docker push "$IMAGE:ci-$GITHUB_RUN_ID-${{ matrix.arch }}"
+          python3 scripts/ci/check-package.py pogo-meetups
+          mkdir digests
+          docker image inspect --format '{{index .RepoDigests 0}}' "$IMAGE:ci-$GITHUB_RUN_ID-${{ matrix.arch }}" | cut -d@ -f2 > digests/${{ matrix.arch }}
+      - name: Save architecture digest
+        if: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/main' }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: digest-${{ matrix.arch }}
+          path: digests/${{ matrix.arch }}
+          retention-days: 1
+  publish:
+    name: Promote both scanned architectures to latest
+    needs: build
+    if: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/main' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    env:
+      IMAGE: ghcr.io/cees-kettenis/pogo-meetups
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: digest-*
+          merge-multiple: true
+          path: digests
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4
+      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+      - name: Update latest only after both native scans pass
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 scripts/ci/check-package.py pogo-meetups
+          docker buildx imagetools create --tag "$IMAGE:latest" "$IMAGE@$(cat digests/amd64)" "$IMAGE@$(cat digests/arm64)"

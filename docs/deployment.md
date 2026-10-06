@@ -4,16 +4,14 @@ Docker Compose runs a production Elixir release and PostgreSQL, serving HTTP at 
 
 ## Publish the image with GitHub Actions
 
-Create a public repository named `pogo-meetups` under your Docker Hub account. In this GitHub repository, open **Settings → Secrets and variables → Actions → New repository secret** and add:
+GitHub Actions publishes `ghcr.io/cees-kettenis/pogo-meetups:latest` privately. No Docker Hub secrets are used. The workflow's job-scoped `GITHUB_TOKEN` has Packages write permission and checks package visibility before and after publishing.
 
-| Secret | Value |
-| --- | --- |
-| `DOCKERHUB_USERNAME` | Your Docker Hub username, not your email address. |
-| `DOCKERHUB_TOKEN` | A Docker Hub personal access token with Read & Write permission. |
+Pushes to `main`, pull requests, weekly rebuilds, and manual dispatch build native `linux/amd64` and `linux/arm64` images. Each image passes a release smoke test and a Trivy vulnerability scan. Fixable HIGH/CRITICAL findings or scanner errors block publication. Both architectures must pass before the multi-platform `latest` tag is promoted. Pull requests never publish. Complete severity counts, including unfixed issues, appear in each job summary. Full JSON reports are not uploaded to this public repository.
 
-The [publish workflow](../.github/workflows/docker-publish.yml) builds `linux/amd64` and `linux/arm64` images and publishes `YOUR_USERNAME/pogo-meetups:latest` on every push, including pushes to other branches and tags. A newer push cancels an older build. You can also run **Publish Docker image** manually from the Actions tab after configuring the secrets. See [Docker's multi-platform workflow documentation](https://docs.docker.com/build/ci/github-actions/multi-platform/).
+Every build pulls base images and reruns Alpine upgrades in the builder/runtime stages. Compiled Elixir dependencies remain cached in the private GHCR package's architecture-specific buildcache tags. Private CI architecture tags support manifest assembly; deployment continues to use `latest`. CI never deploys automatically.
 
-Every CI build pulls the base images and upgrades Alpine packages in both the release builder and runtime stages. Cache reuse is disabled for those two stages so a cached layer cannot skip the upgrades. A separate `deps` stage caches compiled Elixir dependencies and downloaded asset tools in `YOUR_USERNAME/pogo-meetups:buildcache` on Docker Hub. Dependency files, compilation configuration, base image, or platform changes invalidate the matching dependency cache. The release builder copies dependency artifacts into its freshly updated environment; cached operating-system files are not copied into the final image. The first build fills this cache, while later UI changes can reuse the compiled dependencies. The existing Docker Hub secrets also authorize cache uploads.
+On the Pi, authenticate with a classic GitHub token scoped only to `read:packages`. For encrypted credential storage use `Pi/setup-registry-login.sh` in the private `curious-coder-fyi` repository; see its `CI/README.md`. Otherwise `docker login ghcr.io -u Cees-Kettenis` uses Docker's default credential storage. Keep credentials outside `.env.docker` and Git. Existing public Docker Hub images are not deleted by this migration; make the old repository private or remove it separately if no longer needed.
+
 
 Package upgrades use the configured Alpine release branch and the build fails if an upgrade fails. They do not guarantee that every reported vulnerability has an available fix. To refresh the entire dependency cache too, use a local full rebuild with `--no-cache`.
 
@@ -33,7 +31,7 @@ The Pi needs Docker with Compose, this `compose.yaml`, the `docker/postgres` ini
 cp .env.docker.example .env.docker
 ```
 
-Fill in `.env.docker`, including `DOCKERHUB_USERNAME` with the same username configured in GitHub. Keep the existing values when updating a deployment. Generate the three application secrets separately for a new installation:
+Fill in `.env.docker`, using the default private `POGO_IMAGE`, or an image you have built/published yourself. Keep the existing values when updating a deployment. Generate the three application secrets separately for a new installation:
 
 ```sh
 openssl rand -hex 24                 # POSTGRES_PASSWORD
