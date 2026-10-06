@@ -13,6 +13,14 @@ Create a public repository named `pogo-meetups` under your Docker Hub account. I
 
 The [publish workflow](../.github/workflows/docker-publish.yml) builds `linux/amd64` and `linux/arm64` images and publishes `YOUR_USERNAME/pogo-meetups:latest` on every push, including pushes to other branches and tags. A newer push cancels an older build. You can also run **Publish Docker image** manually from the Actions tab after configuring the secrets. See [Docker's multi-platform workflow documentation](https://docs.docker.com/build/ci/github-actions/multi-platform/).
 
+Every CI build pulls the base images and upgrades Alpine packages in both the builder and runtime stages. Docker layer caching is disabled so a cached layer cannot skip the upgrades. This also recompiles application dependencies on each build. Package upgrades use the configured Alpine release branch and the build fails if an upgrade fails. They do not guarantee that every reported vulnerability has an available fix.
+
+For a local image build with the same package refresh behavior, use:
+
+```sh
+docker build --pull --no-cache -t pogo-meetups:local .
+```
+
 Wait for the workflow to finish successfully before pulling the image. Use a 64-bit operating system on the Raspberry Pi for the ARM64 image. Docker selects the matching architecture automatically. Builds run on GitHub; the Pi only pulls and runs the release.
 
 ## Start

@@ -38,7 +38,8 @@ jobs:
         with:
           context: .
           platforms: linux/amd64,linux/arm64
+          # Always refresh base images and execute both stages' package upgrades.
+          pull: true
+          no-cache: true
           push: true
           tags: ${{ secrets.DOCKERHUB_USERNAME }}/pogo-meetups:latest
-          cache-from: type=gha
-          cache-to: type=gha,mode=max

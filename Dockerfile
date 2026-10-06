@@ -2,7 +2,8 @@
 ARG BUILDER_IMAGE=hexpm/elixir:1.20.2-erlang-29.0.4-alpine-3.22.5
 ARG RUNNER_IMAGE=alpine:3.22.5
 FROM ${BUILDER_IMAGE} AS builder
-RUN apk add --no-cache build-base git ca-certificates
+RUN apk upgrade --no-cache \
+    && apk add --no-cache build-base git ca-certificates
 WORKDIR /app
 ENV MIX_ENV=prod
 RUN mix local.hex --force && mix local.rebar --force
@@ -17,7 +18,8 @@ COPY rel rel
 RUN mix compile --warnings-as-errors && mix assets.deploy && mix release
 
 FROM ${RUNNER_IMAGE} AS runner
-RUN apk add --no-cache libstdc++ ncurses-libs libcrypto3 libssl3 liblksctp ca-certificates \
+RUN apk upgrade --no-cache \
+    && apk add --no-cache libstdc++ ncurses-libs libcrypto3 libssl3 liblksctp ca-certificates \
     && addgroup -g 10001 atlas && adduser -D -u 10001 -G atlas -h /app atlas
 WORKDIR /app
 ENV LANG=C.UTF-8 LC_ALL=C.UTF-8 PHX_SERVER=true PORT=5000 IMAGE_STORAGE_PATH=/app/storage/meetup_images
