@@ -24,7 +24,7 @@ services:
       timeout: 5s
       retries: 10
   app:
-    image: ${POGO_IMAGE:-ghcr.io/cees-kettenis/pogo-meetups:latest}
+    image: ${POGO_IMAGE:-ghcr.io/cees-kettenis/curious-code-pogo:latest}
     restart: unless-stopped
     init: true
     logging: *logging
