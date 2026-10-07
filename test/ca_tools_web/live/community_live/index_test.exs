@@ -2,7 +2,38 @@ defmodule CAToolsWeb.CommunityLive.IndexTest do
   use CAToolsWeb.ConnCase, async: true
   import Phoenix.LiveViewTest
   import CATools.AccountsFixtures
-  alias CATools.Communities
+  alias CATools.{Communities, Maps}
+
+  test "copy public link enables public sharing without navigating or changing invitations", %{
+    conn: conn
+  } do
+    user = user_fixture()
+    scope = user_scope_fixture(user)
+
+    {:ok, community} =
+      Communities.save(scope, %{
+        source_url: "https://campfire.nianticlabs.com/discover/clubs/shared"
+      })
+
+    {:ok, _} = Communities.invite(scope, %{email: "friend@example.com"}, community.id)
+    {:ok, view, _} = conn |> log_in_user(user) |> live(~p"/dashboard/community")
+    assert Maps.get_map(scope, community.map_id).visibility == :private
+    refute has_element?(view, "#community-sharing a", "Manage public link")
+
+    render_hook(view, "copy_public_link", %{})
+    map = Maps.get_map(scope, community.map_id)
+    assert map.visibility == :public
+    assert Maps.get_public_map(map.public_slug).id == map.id
+    assert [%{email: "friend@example.com"}] = Communities.get(scope, community.id).invitations
+
+    assert has_element?(
+             view,
+             "#copy-community-public-link[data-prepare-event='copy_public_link']"
+           )
+
+    render_hook(view, "copy_public_link", %{})
+    assert Maps.get_map(scope, community.map_id).public_slug == map.public_slug
+  end
 
   test "owner connects a group, invites an email, and revokes access", %{conn: conn} do
     user = user_fixture()
@@ -20,8 +51,34 @@ defmodule CAToolsWeb.CommunityLive.IndexTest do
     |> render_submit()
 
     assert has_element?(view, "#community-map")
+    refute has_element?(view, "#campfire-group-settings h2", "Updates")
+    assert has_element?(view, "#campfire-group-settings h2", "Group Settings")
+    refute has_element?(view, "#community-updates")
+
+    assert has_element?(
+             view,
+             "#group-link-warning",
+             "Changing the group link replaces the map and its meetups"
+           )
+
+    assert has_element?(
+             view,
+             "#campfire-group-settings button[phx-click='check'] .hero-arrow-path"
+           )
+
     assert has_element?(view, "a[download]")
-    assert has_element?(view, "#community-share-url")
+    community = Communities.get(user_scope_fixture(user))
+
+    assert has_element?(
+             view,
+             "#copy-community-link[data-url$='/community/maps/#{community.map_id}']"
+           )
+
+    assert has_element?(
+             view,
+             "#campfire-group-settings button.atlas-button-danger",
+             "Delete"
+           )
 
     view
     |> form("#community-invite-form", invitation: %{email: "friend@example.com"})

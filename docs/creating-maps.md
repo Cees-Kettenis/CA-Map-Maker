@@ -42,7 +42,7 @@ visibility. **Delete map** removes it and its imported locations permanently.
 
 Meetup dates and times on cards and map popups use the viewer's browser time zone, including daylight saving. Time ranges show the date once, followed by the start and end times.
 
-Update details are hidden initially. Use **Updates** beside **Export KML** to see the last update, scheduled update and **Update now** action. **Delete map** is the first map action and opens a confirmation dialog. Finished meetups are hidden from maps and exports; the list's **Show past meetups** toggle reveals their cards only. Community map cards use the group's locally cached Campfire icon when available.
+Update details are hidden initially. Use **Updates** to see the last update, scheduled update and **Update now** action. The map actions appear in this order: **Edit map**, **Find meetups** for date maps, **Updates**, **Delete map**, and **Map Controls**. Open **Map Controls** for **Export KML**, **Copy public link** on public maps, and **Make public** or **Make private**. Each action has an icon. **Delete map** opens a confirmation dialog. Finished meetups are hidden from maps and exports; the list's **Show past meetups** toggle reveals their cards only. Community map cards use the group's locally cached Campfire icon when available.
 
 For maps you create yourself, open **Edit map** to upload a square image. PNG, JPEG, WebP and GIF files up to 5 MB are supported. Save changes to use it on the map card and beside the title, including the shared page. Community maps use their Campfire group logo. Images are resized to at most 500 × 500 pixels without cropping or enlarging them, then stored locally as WebP at up to 100 KB.
 

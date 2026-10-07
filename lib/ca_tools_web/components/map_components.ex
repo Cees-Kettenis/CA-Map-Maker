@@ -8,13 +8,22 @@ defmodule CAToolsWeb.MapComponents do
   attr :id, :string, required: true
   attr :communities, :list, required: true
   attr :field, Phoenix.HTML.FormField, required: true
+  attr :select_all_event, :string, default: nil
   @doc "Renders searchable community checkboxes with a scrollable five-row list."
   @spec community_selector(map()) :: Phoenix.LiveView.Rendered.t()
   def community_selector(assigns) do
     ~H"""
     <fieldset id={@id} phx-hook="CommunitySearch" class="space-y-2">
       <legend class="text-sm opacity-65 mb-2">Communities</legend>
-      <label for={@id <> "-search"} class="text-sm opacity-65">Search communities</label>
+      <div class="flex items-center justify-between gap-2">
+        <label for={@id <> "-search"} class="text-sm opacity-65">Search communities</label>
+        <button
+          :if={@select_all_event && @communities != []}
+          type="button"
+          phx-click={@select_all_event}
+          class="atlas-button shrink-0"
+        ><.icon name="hero-check-circle" class="size-4 shrink-0" /> Select all</button>
+      </div>
       <input
         id={@id <> "-search"}
         type="search"
@@ -63,6 +72,8 @@ defmodule CAToolsWeb.MapComponents do
 
   attr :map, :any, required: true
   attr :event, :string, default: "update_now"
+  attr :show_heading, :boolean, default: true
+  attr :show_action, :boolean, default: true
   @doc "Displays update times and a manual refresh action without internal batch details."
   @spec update_summary(map()) :: Phoenix.LiveView.Rendered.t()
   def update_summary(assigns) do
@@ -76,26 +87,29 @@ defmodule CAToolsWeb.MapComponents do
 
     ~H"""
     <div class="space-y-5">
-      <h2 class="text-xl font-semibold">Updates</h2>
-      <div class="space-y-2 text-sm">
-        <p class="opacity-65">Last updated</p>
-        <.local_time
-          :if={@last_update}
-          id={"updated-#{@map.id}"}
-          datetime={@last_update}
-        />
-        <p :if={!@last_update}>Not updated yet</p>
-      </div>
-      <div class="space-y-2 text-sm">
-        <p class="opacity-65">Scheduled update</p>
-        <.local_time :if={@next_update} id={"scheduled-#{@map.id}"} datetime={@next_update} />
-        <p :if={!@next_update}>Not scheduled</p>
+      <h2 :if={@show_heading} class="text-xl font-semibold">Updates</h2>
+      <div class="grid grid-cols-2 gap-4 text-sm">
+        <div class="space-y-2 min-w-0">
+          <p class="opacity-65">Last updated</p>
+          <.local_time
+            :if={@last_update}
+            id={"updated-#{@map.id}"}
+            datetime={@last_update}
+          />
+          <p :if={!@last_update}>Not updated yet</p>
+        </div>
+        <div class="space-y-2 min-w-0">
+          <p class="opacity-65">Scheduled update</p>
+          <.local_time :if={@next_update} id={"scheduled-#{@map.id}"} datetime={@next_update} />
+          <p :if={!@next_update}>Not scheduled</p>
+        </div>
       </div>
       <button
+        :if={@show_action}
         phx-click={@event}
         phx-disable-with="Starting..."
         class="atlas-button atlas-button-primary"
-      >Update now</button>
+      ><.icon name="hero-arrow-path" class="size-4 shrink-0" /> Update now</button>
     </div>
     """
   end
@@ -151,13 +165,17 @@ defmodule CAToolsWeb.MapComponents do
       </p>
       <p class="text-xs opacity-60 mt-3">This cannot be undone.</p>
       <div class="flex justify-end gap-3 mt-7">
-        <form method="dialog"><button class="atlas-button">Keep it</button></form>
+        <form method="dialog">
+          <button class="atlas-button"><.icon name="hero-arrow-uturn-left" class="size-4 shrink-0" />
+          Keep it</button>
+        </form>
         <button
           phx-click={@event}
           phx-value-id={@target_id}
           phx-disable-with="Deleting..."
           class="atlas-button atlas-button-danger"
-        >Delete {if @community, do: "community", else: "map"}</button>
+        ><.icon name="hero-trash" class="size-4 shrink-0" />
+        Delete {if @community, do: "community", else: "map"}</button>
       </div>
     </dialog>
     """
@@ -200,6 +218,7 @@ defmodule CAToolsWeb.MapComponents do
           aria-pressed={to_string(@show_past)}
           class="atlas-button"
         >
+          <.icon name="hero-clock" class="size-4 shrink-0" />
           {if @show_past, do: "Hide past meetups", else: "Show past meetups (#{@past_count})"}
         </button>
       </div>
@@ -249,7 +268,7 @@ defmodule CAToolsWeb.MapComponents do
         phx-disable-with="Queuing..."
         data-confirm="Retry failed image downloads? This makes another request to their image URLs. Saved images will be reused."
         class="atlas-button"
-      >Retry failed images</button>
+      ><.icon name="hero-arrow-path" class="size-4 shrink-0" /> Retry failed images</button>
     </div>
     """
   end

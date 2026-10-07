@@ -38,7 +38,7 @@ defmodule CAToolsWeb.Auth.UserLive.Recovery do
             <p class="text-sm opacity-65">This recovery link is invalid or has expired.</p><.link
               navigate={~p"/auth/users/reset-password"}
               class="btn btn-primary"
-            >Request a new link</.link>
+            ><.icon name="hero-envelope" class="size-4 shrink-0" /> Request a new link</.link>
           <% @token != nil -> %>
             <.form
               for={@form}
@@ -62,14 +62,20 @@ defmodule CAToolsWeb.Auth.UserLive.Recovery do
               />
               <p class="text-xs opacity-60 mb-4">
                 At least 12 characters. Existing sessions will be signed out.
-              </p><.button variant="primary" class="w-full">{if @setup?,
+              </p><.button variant="primary" class="w-full"><.icon
+                name="hero-key"
+                class="size-4 shrink-0"
+              />{if @setup?,
                 do: "Set password",
                 else: "Reset password"}</.button>
             </.form>
           <% true -> %>
             <.form for={@form} id="request_reset_form" phx-submit="request_reset">
               <.input field={@form[:email]} type="email" label="Email" autocomplete="email" required />
-              <.button variant="primary" class="w-full">Send recovery link</.button>
+              <.button variant="primary" class="w-full"><.icon
+                name="hero-envelope"
+                class="size-4 shrink-0"
+              /> Send recovery link</.button>
             </.form>
         <% end %>
         <.link navigate={~p"/auth/users/log-in"} class="text-xs underline">Back to log in</.link>

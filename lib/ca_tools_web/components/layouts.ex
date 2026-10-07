@@ -44,23 +44,20 @@ defmodule CAToolsWeb.Layouts do
         <span class="atlas-brand-mark"><.icon name="hero-map" class="size-5" /></span>
         <span>Pogo<span class="font-normal opacity-60"> Meetups</span></span>
       </a>
-      <nav aria-label="Main navigation" class="flex items-center gap-2 sm:gap-5 text-sm">
-        <%= if @current_scope && !@setup do %>
-          <.link navigate={~p"/dashboard/community"} class="nav-link">My Communities</.link>
-          <.link navigate={~p"/dashboard/maps"} class="nav-link">My Maps</.link>
-          <.link :if={@current_scope.user.admin} navigate={~p"/dashboard/users"} class="nav-link">Accounts</.link>
-          <.link navigate={~p"/auth/users/settings"} class="nav-link">Settings</.link>
-          <.link href={~p"/auth/users/log-out"} method="delete" class="nav-link">Log out</.link>
-        <% else %>
-          <.link :if={!@setup} navigate={~p"/auth/users/log-in"} class="nav-link">Log in</.link>
-          <.link
-            :if={!@setup && CATools.Accounts.public_signup_enabled?()}
-            navigate={~p"/auth/users/register"}
-            class="btn btn-primary btn-sm"
-          >Get started <.icon name="hero-arrow-up-right" class="size-4" /></.link>
-        <% end %>
-        <span class="hidden md:block"><.theme_toggle /></span>
-      </nav>
+      <.navigation current_scope={@current_scope} setup={@setup} />
+      <details
+        id="mobile-navigation"
+        class="atlas-mobile-navigation"
+        phx-mounted={JS.ignore_attributes("open")}
+        phx-click-away={JS.remove_attribute("open", to: "#mobile-navigation")}
+        phx-window-keydown={JS.remove_attribute("open", to: "#mobile-navigation")}
+        phx-key="Escape"
+      >
+        <summary class="atlas-button" aria-label="Navigation menu">
+          <.icon name="hero-bars-3" class="size-5" /> Menu
+        </summary>
+        <.navigation current_scope={@current_scope} setup={@setup} mobile />
+      </details>
     </header>
     <main class={["atlas-main", @compact && "atlas-main-compact"]}>
       {render_slot(@inner_block)}
@@ -70,6 +67,64 @@ defmodule CAToolsWeb.Layouts do
     </footer>
 
     <.flash_group flash={@flash} />
+    """
+  end
+
+  attr :current_scope, :map, default: nil
+  attr :setup, :boolean, default: false
+  attr :mobile, :boolean, default: false
+  @doc "Renders account navigation for the desktop bar or mobile menu."
+  @spec navigation(map()) :: Phoenix.LiveView.Rendered.t()
+  def navigation(assigns) do
+    ~H"""
+    <nav
+      aria-label={if @mobile, do: "Mobile navigation", else: "Main navigation"}
+      phx-click={@mobile && JS.remove_attribute("open", to: "#mobile-navigation")}
+      class={
+        if @mobile,
+          do: "atlas-mobile-navigation-menu text-sm",
+          else: "atlas-desktop-navigation flex items-center gap-5 text-sm"
+      }
+    >
+      <%= if @current_scope && !@setup do %>
+        <.link navigate={~p"/dashboard/community"} class="nav-link"><.icon
+          :if={@mobile}
+          name="hero-user-group"
+          class="size-4"
+        />My Communities</.link>
+        <.link navigate={~p"/dashboard/maps"} class="nav-link"><.icon
+          :if={@mobile}
+          name="hero-map"
+          class="size-4"
+        />My Maps</.link>
+        <.link :if={@current_scope.user.admin} navigate={~p"/dashboard/users"} class="nav-link"><.icon
+          :if={@mobile}
+          name="hero-users"
+          class="size-4"
+        />Accounts</.link>
+        <.link navigate={~p"/auth/users/settings"} class="nav-link"><.icon
+          :if={@mobile}
+          name="hero-cog-6-tooth"
+          class="size-4"
+        />Settings</.link>
+        <.link href={~p"/auth/users/log-out"} method="delete" class="nav-link"><.icon
+          :if={@mobile}
+          name="hero-arrow-right-start-on-rectangle"
+          class="size-4"
+        />Log out</.link>
+      <% else %>
+        <.link :if={!@setup} navigate={~p"/auth/users/log-in"} class="nav-link">Log in</.link>
+        <.link
+          :if={!@setup && CATools.Accounts.public_signup_enabled?()}
+          navigate={~p"/auth/users/register"}
+          class="btn btn-primary btn-sm"
+        >Get started <.icon name="hero-arrow-up-right" class="size-4" /></.link>
+      <% end %>
+      <div class={if @mobile, do: "atlas-mobile-theme", else: "hidden md:block"}>
+        <span :if={@mobile} class="text-xs opacity-65">Appearance</span>
+        <.theme_toggle />
+      </div>
+    </nav>
     """
   end
 

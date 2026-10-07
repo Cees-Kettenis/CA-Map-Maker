@@ -112,7 +112,7 @@ defmodule CAToolsWeb.MapLive.Index do
             <span class="atlas-section-icon"><.icon name="hero-plus" class="size-5" /></span>
             Make a new map
           </h2>
-          <div class="grid grid-cols-2 gap-2 mb-5" aria-label="Map source">
+          <div class="atlas-map-source-actions grid grid-cols-2 gap-2 mb-5" aria-label="Map source">
             <button
               phx-click="mode"
               phx-value-mode="communities"
@@ -122,7 +122,11 @@ defmodule CAToolsWeb.MapLive.Index do
                   do: "atlas-button atlas-button-primary w-full justify-center",
                   else: "atlas-button w-full justify-center"
               }
-            >Communities</button>
+              aria-label="Communities"
+            ><.icon name="hero-user-group" class="size-4 shrink-0" /><span class="atlas-map-filter-label">Communities</span><span
+              class="atlas-map-filter-short-label"
+              aria-hidden="true"
+            >Groups</span></button>
             <button
               phx-click="mode"
               phx-value-mode="links"
@@ -132,7 +136,7 @@ defmodule CAToolsWeb.MapLive.Index do
                   do: "atlas-button atlas-button-primary w-full justify-center",
                   else: "atlas-button w-full justify-center"
               }
-            >Paste links</button>
+            ><.icon name="hero-link" class="size-4 shrink-0" />Paste links</button>
           </div>
           <.form
             :if={@map_mode == "communities"}
@@ -161,7 +165,10 @@ defmodule CAToolsWeb.MapLive.Index do
               communities={@communities}
               field={@meetup_form[:community_ids]}
             />
-            <.link :if={@communities == []} navigate={~p"/dashboard/community"} class="atlas-button">Add communities first</.link>
+            <.link :if={@communities == []} navigate={~p"/dashboard/community"} class="atlas-button"><.icon
+              name="hero-plus"
+              class="size-4 shrink-0"
+            /> Add communities first</.link>
             <p class="text-xs opacity-65">
               Creates a private map that stays linked to these groups. Meetup details update as imports finish.
             </p>
@@ -220,7 +227,7 @@ defmodule CAToolsWeb.MapLive.Index do
           </.form>
         </section>
         <section class="min-w-0">
-          <nav class="flex flex-wrap gap-2 mb-5" aria-label="Filter maps">
+          <nav class="atlas-map-filters flex flex-wrap gap-2 mb-5" aria-label="Filter maps">
             <button
               :for={
                 {label, filter} <- [
@@ -231,9 +238,22 @@ defmodule CAToolsWeb.MapLive.Index do
               }
               phx-click="filter_maps"
               phx-value-filter={filter}
+              aria-label={label}
               aria-pressed={to_string(@map_filter == filter)}
               class={["atlas-button", @map_filter == filter && "atlas-button-primary"]}
-            >{label}</button>
+            ><.icon
+              name={
+                case filter do
+                  "created" -> "hero-pencil-square"
+                  "community" -> "hero-user-group"
+                  _ -> "hero-squares-2x2"
+                end
+              }
+              class="size-4 shrink-0"
+            /><span class="atlas-map-filter-label">{label}</span><span
+              class="atlas-map-filter-short-label"
+              aria-hidden="true"
+            >{if filter == "community", do: "Groups", else: String.replace(label, " Maps", "")}</span></button>
           </nav>
           <div :if={@visible_maps == []} class="atlas-empty">
             <.icon name="hero-map" class="size-10 opacity-40 mb-4" />

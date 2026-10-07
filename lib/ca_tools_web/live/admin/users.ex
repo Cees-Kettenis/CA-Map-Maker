@@ -30,14 +30,17 @@ defmodule CAToolsWeb.Admin.Users do
         </p>
         <.form for={@form} id="create-user-form" phx-submit="create">
           <.input field={@form[:email]} type="email" label="Email" required />
-          <.button variant="primary" phx-disable-with="Creating...">Create user</.button>
+          <.button variant="primary" phx-disable-with="Creating..."><.icon
+            name="hero-user-plus"
+            class="size-4 shrink-0"
+          /> Create user</.button>
         </.form>
       </section>
       <section class="mt-8 max-w-2xl">
         <h2 class="font-semibold text-xl mb-4">Users</h2>
         <ul class="divide-y divide-base-300">
-          <li :for={user <- @users} class="py-3 flex justify-between gap-3">
-            <span>{user.email}</span><span :if={user.admin}>Administrator</span>
+          <li :for={user <- @users} class="py-3 flex flex-wrap justify-between gap-3">
+            <span class="min-w-0 break-all">{user.email}</span><span :if={user.admin}>Administrator</span>
           </li>
         </ul>
       </section>

@@ -36,10 +36,13 @@ defmodule CAToolsWeb.Auth.UserLive.Registration do
             Use at least 12 characters, or leave this blank to sign in by email.
           </p>
           <.button phx-disable-with="Creating account..." class="btn btn-primary w-full">
-            Create an account
+            <.icon name="hero-user-plus" class="size-4 shrink-0" /> Create an account
           </.button>
         </.form>
-        <.link navigate={~p"/auth/users/log-in"} class="text-sm underline mt-5 inline-block">Log in</.link>
+        <.link navigate={~p"/auth/users/log-in"} class="text-sm underline mt-5 inline-block"><.icon
+          name="hero-arrow-right-start-on-rectangle"
+          class="size-4 shrink-0"
+        /> Log in</.link>
       </div>
     </Layouts.app>
     """

@@ -2,8 +2,8 @@
 
 Public links work for maps created from meetup links, monitored communities, and maps assembled from communities for a chosen date. Maps start private unless you choose public visibility when creating them.
 
-1. Open your map from **My Maps**, or select **Manage public link** in **My Communities**.
-2. Select **Make public**.
+1. Open your map from **My Maps**. For a group map, **Copy public link** in **My Communities** enables public sharing and copies the URL directly.
+2. Open **Map Controls** and select **Make public**.
 3. Select **Copy public link** and send the link to your community.
 
 Anyone with the link can open the map without an account. Visitors can select **View on Campfire** from meetup cards or map popups to open the meetup and check in through Campfire. Visitors can export KML, but cannot edit, delete, or trigger updates. Locations appear

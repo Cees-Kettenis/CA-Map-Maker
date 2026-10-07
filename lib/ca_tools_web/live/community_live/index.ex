@@ -33,11 +33,21 @@ defmodule CAToolsWeb.CommunityLive.Index do
   @impl true
   @doc false
   @spec handle_event(String.t(), map(), Phoenix.LiveView.Socket.t()) ::
-          {:noreply, Phoenix.LiveView.Socket.t()}
+          {:noreply, Phoenix.LiveView.Socket.t()} | {:reply, map(), Phoenix.LiveView.Socket.t()}
   def handle_event(event, params, socket) do
     scope = socket.assigns.current_scope
 
     case event do
+      "copy_public_link" ->
+        case socket.assigns.map &&
+               Maps.update_map(scope, socket.assigns.map.id, %{visibility: :public}) do
+          {:ok, map} ->
+            {:reply, %{url: url(~p"/maps/#{map.public_slug}")}, assign(socket, map: map)}
+
+          _ ->
+            {:reply, %{url: nil}, put_flash(socket, :error, "Could not enable public sharing.")}
+        end
+
       "toggle_past" ->
         {:noreply, assign(socket, show_past?: !socket.assigns.show_past?)}
 
@@ -250,78 +260,150 @@ defmodule CAToolsWeb.CommunityLive.Index do
 
     ~H"""
     <Layouts.app flash={@flash} current_scope={@current_scope}>
-      <div class="flex flex-wrap items-center justify-between gap-4 mb-8">
+      <div class="atlas-community-header flex flex-wrap items-center justify-between gap-4 mb-6">
         <h1 class="atlas-display text-4xl">My Communities</h1>
-        <div class="flex flex-wrap gap-2">
-          <button
-            :if={@community && @map}
-            phx-click={JS.dispatch("atlas:open", to: "#delete-community-dialog")}
-            class="atlas-button atlas-button-danger"
-          ><.icon name="hero-trash" class="size-4" /> Delete community</button>
-          <button :if={@community && @community.enabled} phx-click="check" class="atlas-button"><.icon
-            name="hero-arrow-path"
-            class="size-4"
-          /> Check for meetups</button>
-        </div>
+        <.link navigate={~p"/dashboard/maps"} class="atlas-button">
+          <.icon name="hero-plus" class="size-4 shrink-0" />
+          <span class="atlas-action-full-label">Create a meetup map</span>
+          <span class="atlas-action-short-label">Create Map</span>
+        </.link>
       </div>
-      <section class="atlas-card p-6 mb-6">
-        <.form for={@links_form} id="community-links-form" phx-submit="add_groups" class="space-y-3">
-          <.input
-            field={@links_form[:links]}
-            type="textarea"
-            label="Add communities"
-            rows="3"
-            placeholder="Paste one group or invitation link per line"
-            required
-          />
-          <div class="flex flex-wrap items-center gap-3">
-            <button class="btn btn-primary" phx-disable-with="Adding...">Track groups</button>
-            <.link navigate={~p"/dashboard/maps"} class="atlas-button">Create a meetup map
-            <.icon name="hero-arrow-right" class="size-4" /></.link>
-          </div>
-        </.form>
-      </section>
-      <nav :if={@communities != []} class="flex flex-wrap gap-3 mb-6" aria-label="Tracked communities">
-        <button
-          :for={community <- @communities}
-          phx-click="select"
-          phx-value-id={community.id}
-          aria-pressed={if @community && @community.id == community.id, do: "true", else: "false"}
-          class={
-            if @community && @community.id == community.id,
-              do: "atlas-button atlas-button-primary atlas-community-tab",
-              else: "atlas-button atlas-community-tab"
-          }
+      <div class="atlas-community-toolbar mb-6">
+        <div :if={@communities != []} class="atlas-community-search-control">
+          <span id="community-search-label" class="text-sm font-semibold">Search:</span>
+          <details
+            id="tracked-community-picker"
+            phx-hook="CommunitySearch"
+            class="atlas-community-picker"
+            phx-mounted={JS.ignore_attributes("open")}
+            phx-click-away={JS.remove_attribute("open", to: "#tracked-community-picker")}
+            phx-window-keydown={JS.remove_attribute("open", to: "#tracked-community-picker")}
+            phx-key="Escape"
+          >
+            <summary
+              class="atlas-button"
+              aria-label="Search communities and choose a community"
+              phx-click={JS.remove_attribute("open", to: "#add-communities")}
+            >
+              <.icon name="hero-user-group" class="size-4 shrink-0" />
+              <span class="min-w-0 flex-1 text-left truncate">
+                {if @community,
+                  do: @community.name || URI.parse(@community.source_url).path,
+                  else: "Choose community"}
+              </span>
+              <.icon name="hero-chevron-down" class="size-4 shrink-0" />
+            </summary>
+            <div class="atlas-community-picker-menu space-y-3">
+              <label for="tracked-community-search" class="text-sm opacity-65">Search communities</label>
+              <input
+                id="tracked-community-search"
+                type="search"
+                data-community-search
+                autocomplete="off"
+                placeholder="Search by name"
+                aria-controls="tracked-community-list"
+                class="input w-full"
+              />
+              <p data-community-results aria-live="polite" class="text-xs opacity-60">
+                {length(@communities)} communities
+              </p>
+              <nav
+                id="tracked-community-list"
+                data-community-list
+                class="atlas-community-options"
+                aria-label="Tracked communities"
+              >
+                <button
+                  :for={community <- @communities}
+                  phx-click={
+                    JS.push("select") |> JS.remove_attribute("open", to: "#tracked-community-picker")
+                  }
+                  phx-value-id={community.id}
+                  data-community-option
+                  data-community-name={community.name || URI.parse(community.source_url).path}
+                  aria-pressed={to_string(@community && @community.id == community.id)}
+                  class={[
+                    "atlas-button atlas-community-option",
+                    @community && @community.id == community.id && "atlas-button-primary"
+                  ]}
+                >
+                  <img
+                    :if={@group_icons[community.avatar_url]}
+                    src={@group_icons[community.avatar_url]}
+                    alt=""
+                    class="size-6 rounded-md object-contain shrink-0"
+                  />
+                  <.icon
+                    :if={!@group_icons[community.avatar_url]}
+                    name="hero-user-group"
+                    class="size-4 shrink-0"
+                  />
+                  <span class="truncate flex-1 text-left">{community.name ||
+                    URI.parse(community.source_url).path}</span>
+                  <span :if={!community.enabled} class="text-xs opacity-60 shrink-0">Paused</span>
+                </button>
+              </nav>
+              <p data-community-empty hidden class="text-sm opacity-65">
+                No communities match your search.
+              </p>
+            </div>
+          </details>
+        </div>
+        <details
+          id="add-communities"
+          class="atlas-add-communities atlas-disclosure"
+          phx-mounted={JS.ignore_attributes("open")}
+          phx-click-away={JS.remove_attribute("open", to: "#add-communities")}
+          phx-window-keydown={JS.remove_attribute("open", to: "#add-communities")}
+          phx-key="Escape"
         >
-          <img
-            :if={@group_icons[community.avatar_url]}
-            src={@group_icons[community.avatar_url]}
-            alt=""
-            class="size-6 rounded-md object-contain shrink-0"
-          />
-          <.icon :if={!@group_icons[community.avatar_url]} name="hero-user-group" class="size-4" />
-          <span class="truncate">{community.name || URI.parse(community.source_url).path}</span>
-          <span :if={!community.enabled} class="text-xs opacity-60">Paused</span>
-        </button>
-      </nav>
-      <div class="grid lg:grid-cols-[minmax(0,1fr)_340px] gap-6">
-        <div class="space-y-6">
-          <section :if={@map} class="atlas-card p-5">
-            <div class="flex justify-between items-center mb-4 gap-4">
-              <h2 class="text-xl font-semibold flex items-center gap-3">
+          <summary
+            class="atlas-button"
+            phx-click={JS.remove_attribute("open", to: "#tracked-community-picker")}
+          >
+            <.icon name="hero-plus" class="size-4" /> Add communities
+            <.icon name="hero-chevron-down" class="size-4 ml-auto" />
+          </summary>
+          <.form
+            for={@links_form}
+            id="community-links-form"
+            phx-submit="add_groups"
+            class="atlas-card p-5 space-y-3"
+          >
+            <.input
+              field={@links_form[:links]}
+              type="textarea"
+              label="Group or invitation links"
+              rows="2"
+              placeholder="Paste one link per line"
+              required
+            />
+            <button
+              class="atlas-button atlas-button-primary w-full justify-center"
+              phx-disable-with="Adding..."
+            ><.icon name="hero-user-group" class="size-4 shrink-0" /> Track groups</button>
+          </.form>
+        </details>
+      </div>
+      <div class="atlas-community-layout grid lg:grid-cols-[minmax(0,1fr)_340px] gap-6">
+        <div class="atlas-community-map-column">
+          <section :if={@map} class="atlas-community-map-card atlas-card p-5">
+            <div class="atlas-community-map-header flex justify-between items-center mb-4 gap-3">
+              <h2 class="text-xl font-semibold flex items-center gap-3 min-w-0 flex-1">
                 <img
                   :if={@group_icons[@community.avatar_url]}
                   src={@group_icons[@community.avatar_url]}
                   alt=""
                   class="size-12 rounded-xl object-contain shrink-0"
                 />
-                {@community.name || "Community map"}
+                <span class="min-w-0 truncate" title={@community.name || "Community map"}>{@community.name ||
+                  "Community map"}</span>
               </h2>
               <.link
                 href={~p"/dashboard/maps/#{@map.id}/export.kml"}
                 download="pogo-meetups-map.kml"
-                class="atlas-button"
-              >Export KML</.link>
+                class="atlas-button shrink-0"
+              ><.icon name="hero-arrow-down-tray" class="size-4 shrink-0" /> Export KML</.link>
             </div>
             <.map_canvas id="community-map" points={Maps.point_data(@map, true)} now={@view_time} />
             <p class="text-sm opacity-65 mt-4">
@@ -334,80 +416,156 @@ defmodule CAToolsWeb.CommunityLive.Index do
             <.icon name="hero-user-group" class="size-12 text-primary mb-4" />
             <p>Connect your Campfire group to map its meetups.</p>
           </section>
-          <section :if={@community && @map} class="atlas-card p-6 space-y-4">
-            <h2 class="text-xl font-semibold">Public sharing</h2>
-            <p class="text-sm opacity-70">
-              Share a read-only map with anyone, without requiring them to sign in.
-            </p>
-            <.link navigate={~p"/dashboard/maps/#{@map.id}"} class="atlas-button">Manage public link</.link>
-            <h2 class="text-xl font-semibold">Private sharing</h2>
-            <p class="text-sm opacity-70">
-              Invite an email, then send this link. They must sign in with that email.
-            </p>
-            <.form
-              for={@invite_form}
-              id="community-invite-form"
-              phx-submit="invite"
-              class="flex flex-wrap items-end gap-3"
-            >
-              <div class="grow">
-                <.input field={@invite_form[:email]} type="email" label="Email to invite" required />
-              </div>
-              <button class="btn btn-primary mb-2">Invite</button>
-            </.form>
-            <div class="flex gap-2">
-              <input
-                id="community-share-url"
-                type="text"
-                readonly
-                value={url(~p"/community/maps/#{@map.id}")}
-                class="input w-full"
-                aria-label="Private community link"
-              />
-              <button
-                id="copy-community-link"
-                phx-hook="CopyLink"
-                data-target="#community-share-url"
-                data-url={url(~p"/community/maps/#{@map.id}")}
-                class="atlas-button"
-              >Copy link</button>
-            </div>
-            <ul class="divide-y divide-base-300">
-              <li
-                :for={invitation <- @community.invitations}
-                class="flex justify-between items-center py-3 gap-3"
-              >
-                <span class="text-sm break-all">{invitation.email}</span>
-                <button phx-click="revoke" phx-value-id={invitation.id} class="text-sm underline">Revoke</button>
-              </li>
-            </ul>
-          </section>
         </div>
-        <section class="atlas-card p-6 self-start space-y-4">
-          <h2 class="text-xl font-semibold">Campfire group</h2>
-          <.form for={@community_form} id="community-form" phx-submit="save">
-            <.input
-              field={@community_form[:source_url]}
-              type="url"
-              label="Group or invitation link"
-              placeholder="https://campfire.onelink.me/..."
-              required
-            />
-            <.input field={@community_form[:enabled]} type="checkbox" label="Monitor for new meetups" />
-            <button class="btn btn-primary mt-4" phx-disable-with="Saving...">Save community</button>
-          </.form>
-          <p class="text-sm opacity-65">
-            Communities and upcoming meetups update once a day. Use Update now whenever you need fresh details.
-          </p>
-          <p class="text-xs opacity-65">
-            Changing groups replaces the map and clears its invitations.
-          </p>
-          <.update_summary :if={@map} map={@map} event="check" />
-          <p :if={@community && @community.error_message} role="alert" class="text-sm text-error">
-            {@community.error_message}
-          </p>
-          <.link navigate={~p"/auth/users/settings"} class="text-sm underline">Manage Campfire token</.link>
-        </section>
+        <aside class="atlas-community-sidebar min-w-0">
+          <section id="campfire-group-settings" class="atlas-card p-5 space-y-3">
+            <h2 class="text-xl font-semibold flex items-center gap-2">
+              <.icon name="hero-cog-6-tooth" class="size-4 shrink-0" /> Group Settings
+            </h2>
+            <.form for={@community_form} id="community-form" phx-submit="save" class="space-y-3">
+              <div class="atlas-group-link">
+                <div class="flex items-center gap-1">
+                  <label for={@community_form[:source_url].id} class="label">Group Link</label>
+                  <div class="atlas-group-link-help">
+                    <button
+                      type="button"
+                      id="group-link-help"
+                      aria-label="About changing the group link"
+                      aria-expanded="false"
+                      aria-controls="group-link-warning"
+                      aria-describedby="group-link-warning"
+                      phx-click={JS.toggle_attribute({"aria-expanded", "true", "false"})}
+                      phx-click-away={
+                        JS.set_attribute({"aria-expanded", "false"}, to: "#group-link-help")
+                      }
+                      phx-window-keydown={
+                        JS.set_attribute({"aria-expanded", "false"}, to: "#group-link-help")
+                      }
+                      phx-key="Escape"
+                      class="atlas-info-button"
+                    >
+                      <.icon name="hero-information-circle" class="size-3.5" />
+                    </button>
+                    <p id="group-link-warning" role="tooltip" class="atlas-info-tooltip">
+                      Changing the group link replaces the map and its meetups
+                    </p>
+                  </div>
+                </div>
+                <.input
+                  field={@community_form[:source_url]}
+                  type="url"
+                  placeholder="https://campfire.onelink.me/..."
+                  required
+                />
+              </div>
+              <.input
+                field={@community_form[:enabled]}
+                type="checkbox"
+                label="Monitor for new meetups"
+              />
+              <div :if={@map} class="border-t border-base-300 pt-4">
+                <.update_summary map={@map} show_heading={false} show_action={false} />
+              </div>
+              <div class="atlas-community-actions grid gap-2 border-t border-base-300 pt-4">
+                <button
+                  type="submit"
+                  phx-disable-with="Saving..."
+                  class="atlas-button atlas-button-primary justify-center"
+                >
+                  <.icon name="hero-check" class="size-4 shrink-0" /> Save
+                </button>
+                <button
+                  :if={@community && @map}
+                  type="button"
+                  phx-click="check"
+                  phx-disable-with="Starting..."
+                  class="atlas-button justify-center"
+                >
+                  <.icon name="hero-arrow-path" class="size-4 shrink-0" /> Update now
+                </button>
+                <button
+                  :if={@community && @map}
+                  type="button"
+                  phx-click={JS.dispatch("atlas:open", to: "#delete-community-dialog")}
+                  class="atlas-button atlas-button-danger justify-center"
+                  aria-label="Delete community"
+                >
+                  <.icon name="hero-trash" class="size-4 shrink-0" /> Delete
+                </button>
+              </div>
+            </.form>
+            <p :if={@community && @community.error_message} role="alert" class="text-sm text-error">
+              {@community.error_message}
+            </p>
+            <.link
+              :if={@current_scope.user.admin}
+              navigate={~p"/auth/users/settings"}
+              class="text-xs underline block"
+            >Manage Campfire token</.link>
+          </section>
+          <section :if={@community && @map} id="community-sharing" class="atlas-card p-5 space-y-3">
+            <h2 class="text-xl font-semibold">Sharing</h2>
+            <div>
+              <div class="space-y-2">
+                <.form
+                  for={@invite_form}
+                  id="community-invite-form"
+                  phx-submit="invite"
+                  class="atlas-community-invite-form"
+                >
+                  <div class="min-w-0">
+                    <.input
+                      field={@invite_form[:email]}
+                      type="email"
+                      label="Email to invite"
+                      required
+                    />
+                  </div>
+                  <div class="atlas-invitation-actions atlas-sharing-actions">
+                    <button class="atlas-button atlas-button-primary"><.icon
+                      name="hero-user-plus"
+                      class="size-4 shrink-0"
+                    /> Invite</button>
+                    <button
+                      type="button"
+                      id="copy-community-public-link"
+                      phx-hook="CopyLink"
+                      data-prepare-event="copy_public_link"
+                      class="atlas-button"
+                    >
+                      <.icon name="hero-globe-alt" class="size-4 shrink-0" /><span data-copy-label>Copy public link</span>
+                    </button>
+                    <button
+                      type="button"
+                      id="copy-community-link"
+                      phx-hook="CopyLink"
+                      data-url={url(~p"/community/maps/#{@map.id}")}
+                      class="atlas-button"
+                    >
+                      <.icon name="hero-clipboard-document" class="size-4" /><span data-copy-label>Copy private link</span>
+                    </button>
+                  </div>
+                </.form>
+                <ul
+                  :if={@community.invitations != []}
+                  class="atlas-community-invitations divide-y divide-base-300"
+                >
+                  <li
+                    :for={invitation <- @community.invitations}
+                    class="flex justify-between items-center py-2 gap-3"
+                  >
+                    <span class="text-sm break-all min-w-0">{invitation.email}</span>
+                    <button
+                      phx-click="revoke"
+                      phx-value-id={invitation.id}
+                      class="atlas-button shrink-0"
+                    ><.icon name="hero-user-minus" class="size-4 shrink-0" /> Revoke</button>
+                  </li>
+                </ul>
+              </div>
+            </div>
+          </section>
+        </aside>
       </div>
       <.meetup_section
         :if={@map}

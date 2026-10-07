@@ -46,25 +46,16 @@ defmodule CAToolsWeb.MapLive.Show do
   def render(assigns) do
     ~H"""
     <Layouts.app flash={@flash} current_scope={@current_scope}>
-      <.link navigate={~p"/dashboard/maps"} class="text-xs opacity-60 flex gap-2 items-center mb-7"><.icon
-        name="hero-arrow-left"
-        class="size-3"
-      /> My Maps</.link>
-      <div class="atlas-owner-map-header flex flex-wrap justify-between items-end gap-5 mb-7">
+      <div class="atlas-owner-map-header flex flex-wrap justify-between items-center gap-5 mb-7">
         <.map_identity map={@map} />
-        <div class="atlas-owner-map-actions flex flex-wrap gap-2">
-          <button
-            phx-click={JS.dispatch("atlas:open", to: "#delete-map-dialog")}
-            class="atlas-button atlas-button-danger"
-          ><.icon name="hero-trash" class="size-4" /> Delete map</button>
+        <div
+          class="atlas-owner-map-actions flex flex-wrap gap-2"
+          data-date-map={to_string(not is_nil(@map.meetup_date))}
+        >
           <button phx-click="edit" class="atlas-button"><.icon
             name="hero-pencil-square"
             class="size-4"
-          /> Edit map</button><.link
-            href={~p"/dashboard/maps/#{@map.id}/export.kml"}
-            download="pogo-meetups-map.kml"
-            class="atlas-button"
-          ><.icon name="hero-arrow-down-tray" class="size-4" /> Export KML</.link>
+          /> Edit map</button>
           <button
             :if={@map.meetup_date}
             id="find-community-meetups"
@@ -72,26 +63,60 @@ defmodule CAToolsWeb.MapLive.Show do
             aria-expanded={to_string(@show_communities?)}
             aria-controls="map-community-selection"
             title="Find meetups from communities"
+            aria-label="Find meetups"
             class="atlas-button"
-          ><.icon name="hero-magnifying-glass" class="size-4" /> Find meetups</button>
+          ><.icon name="hero-magnifying-glass" class="size-4" /><span class="atlas-action-full-label">Find meetups</span><span
+            class="atlas-action-short-label"
+            aria-hidden="true"
+          >Find</span></button>
           <button
             phx-click="toggle_progress"
+            aria-label={if @show_progress?, do: "Hide updates", else: "Updates"}
             aria-expanded={to_string(@show_progress?)}
             aria-controls="map-import-progress"
             class="atlas-button"
-          ><.icon name="hero-arrow-path" class="size-4" /> {if @show_progress?,
+          ><.icon name="hero-arrow-path" class="size-4" /><span class="atlas-action-full-label">{if @show_progress?,
             do: "Hide updates",
-            else: "Updates"}</button>
+            else: "Updates"}</span><span class="atlas-action-short-label" aria-hidden="true">Updates</span></button>
           <button
-            :if={@map.visibility == :public}
-            id="copy-share"
-            phx-hook="CopyLink"
-            data-url={url(~p"/maps/#{@map.public_slug}")}
-            class="atlas-button"
-          >Copy public link</button>
-          <button phx-click="toggle_sharing" class="atlas-button">
-            {if @map.visibility == :public, do: "Make private", else: "Make public"}
-          </button>
+            phx-click={JS.dispatch("atlas:open", to: "#delete-map-dialog")}
+            class="atlas-button atlas-button-danger"
+          ><.icon name="hero-trash" class="size-4" /> Delete map</button>
+          <details
+            id="map-controls"
+            class="atlas-map-controls"
+            phx-mounted={JS.ignore_attributes("open")}
+            phx-click-away={JS.remove_attribute("open", to: "#map-controls")}
+            phx-window-keydown={JS.remove_attribute("open", to: "#map-controls")}
+            phx-key="Escape"
+          >
+            <summary class="atlas-button">
+              <.icon name="hero-adjustments-horizontal" class="size-4" /> Map Controls
+              <.icon name="hero-chevron-down" class="size-3" />
+            </summary>
+            <div class="atlas-map-controls-menu" role="group" aria-label="Map controls">
+              <button
+                :if={@map.visibility == :public}
+                id="copy-share"
+                phx-hook="CopyLink"
+                data-url={url(~p"/maps/#{@map.public_slug}")}
+                class="atlas-button"
+              ><.icon name="hero-clipboard-document" class="size-4" /><span data-copy-label>Copy public link</span></button>
+              <button phx-click="toggle_sharing" class="atlas-button">
+                <.icon
+                  name={if @map.visibility == :public, do: "hero-lock-closed", else: "hero-globe-alt"}
+                  class="size-4"
+                />
+                {if @map.visibility == :public, do: "Make private", else: "Make public"}
+              </button>
+              <.link
+                href={~p"/dashboard/maps/#{@map.id}/export.kml"}
+                download="pogo-meetups-map.kml"
+                phx-click={JS.remove_attribute("open", to: "#map-controls")}
+                class="atlas-button"
+              ><.icon name="hero-arrow-down-tray" class="size-4 shrink-0" /> Export KML</.link>
+            </div>
+          </details>
         </div>
       </div>
       <section :if={@editing?} class="atlas-card p-6 mb-7">
@@ -125,7 +150,7 @@ defmodule CAToolsWeb.MapLive.Show do
                 phx-click="cancel_image"
                 phx-value-ref={entry.ref}
                 class="atlas-button"
-              >Remove selection</button>
+              ><.icon name="hero-x-mark" class="size-4 shrink-0" /> Remove selection</button>
               <p :for={error <- upload_errors(@uploads.map_image, entry)} class="text-sm text-error">
                 {case error do
                   :too_large -> "Choose an image smaller than 5 MB."
@@ -136,11 +161,12 @@ defmodule CAToolsWeb.MapLive.Show do
             </div>
           </div>
           <div class="flex gap-2">
-            <.button variant="primary">Save changes</.button><button
+            <.button variant="primary"><.icon name="hero-check" class="size-4 shrink-0" />
+            Save changes</.button><button
               type="button"
               phx-click="edit"
               class="atlas-button"
-            >Cancel</button>
+            ><.icon name="hero-x-mark" class="size-4 shrink-0" /> Cancel</button>
           </div>
         </.form>
       </section>
@@ -148,12 +174,12 @@ defmodule CAToolsWeb.MapLive.Show do
         "grid gap-6",
         (@show_progress? || @show_communities?) && "xl:grid-cols-[1fr_320px]"
       ]}>
-        <section class="atlas-card">
+        <section class="atlas-card order-2 xl:order-1">
           <.map_canvas id="owner-map" points={@points} now={@view_time} /><div class="px-5 py-4 flex justify-between text-xs">
             <span>{length(Maps.active_points(@points, @view_time))} meetup locations</span>
           </div>
         </section>
-        <aside :if={@show_progress? || @show_communities?} class="space-y-6">
+        <aside :if={@show_progress? || @show_communities?} class="space-y-6 order-1 xl:order-2">
           <section
             :if={@show_communities?}
             id="map-community-selection"
@@ -185,12 +211,13 @@ defmodule CAToolsWeb.MapLive.Show do
                 id="map-community-selector"
                 communities={@available_communities}
                 field={@community_form[:community_ids]}
+                select_all_event="select_all_communities"
               />
               <.link
                 :if={@available_communities == []}
                 navigate={~p"/dashboard/community"}
                 class="atlas-button"
-              >Add communities first</.link>
+              ><.icon name="hero-plus" class="size-4 shrink-0" /> Add communities first</.link>
               <p class="text-xs opacity-65">
                 Saves your selection and finds meetups already stored for this date.
               </p>
@@ -198,7 +225,7 @@ defmodule CAToolsWeb.MapLive.Show do
                 :if={@available_communities != []}
                 variant="primary"
                 phx-disable-with="Finding meetups..."
-              >Save and find meetups</.button>
+              ><.icon name="hero-magnifying-glass" class="size-4 shrink-0" /> Save and find meetups</.button>
             </.form>
           </section>
           <section :if={@show_progress?} id="map-import-progress" class="atlas-card p-5 space-y-5">
@@ -252,19 +279,24 @@ defmodule CAToolsWeb.MapLive.Show do
         {:noreply, put_flash(socket, :info, "Update started.")}
 
       "find_community_meetups" ->
-        if socket.assigns.map.meetup_date do
-          linked = MeetupMaps.communities(scope, id)
+        cond do
+          is_nil(socket.assigns.map.meetup_date) ->
+            {:noreply, put_flash(socket, :error, "This action is only available for date maps.")}
 
-          {:noreply,
-           assign(socket,
-             show_communities?: true,
-             available_communities: Communities.list(scope),
-             linked_communities: linked,
-             community_form:
-               to_form(%{"community_ids" => Enum.map(linked, & &1.id)}, as: "communities")
-           )}
-        else
-          {:noreply, put_flash(socket, :error, "This action is only available for date maps.")}
+          socket.assigns.show_communities? ->
+            {:noreply, assign(socket, show_communities?: false)}
+
+          true ->
+            linked = MeetupMaps.communities(scope, id)
+
+            {:noreply,
+             assign(socket,
+               show_communities?: true,
+               available_communities: Communities.list(scope),
+               linked_communities: linked,
+               community_form:
+                 to_form(%{"community_ids" => Enum.map(linked, & &1.id)}, as: "communities")
+             )}
         end
 
       "close_communities" ->
@@ -273,6 +305,16 @@ defmodule CAToolsWeb.MapLive.Show do
       "select_communities" ->
         {:noreply,
          assign(socket, community_form: to_form(params["communities"] || %{}, as: "communities"))}
+
+      "select_all_communities" ->
+        {:noreply,
+         assign(socket,
+           community_form:
+             to_form(
+               %{"community_ids" => Enum.map(socket.assigns.available_communities, & &1.id)},
+               as: "communities"
+             )
+         )}
 
       "save_communities" ->
         if socket.assigns.map.meetup_date do

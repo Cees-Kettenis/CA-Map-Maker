@@ -56,13 +56,16 @@ test('public link buttons copy without a visible URL field, including the clipbo
   const previousDocument = globalThis.document
 
   try {
-    for (const clipboardAvailable of [true, false]) {
+    for (const [clipboardAvailable, withIcon, prepare] of [[true, false], [false, false], [true, true], [false, true], [true, true, true], [false, true, true]]) {
       const url = 'https://example.com/maps/shared-map'
       let copied
       let temporary
       const handlers = {}
+      const labelElement = withIcon ? {textContent: 'Copy public link'} : null
       const el = {textContent: 'Copy public link', dataset: {url}, isConnected: false,
+        querySelector() { return labelElement },
         addEventListener(event, handler) { handlers[event] = handler }}
+      if (prepare) el.dataset = {prepareEvent: 'copy_public_link'}
 
       Object.defineProperty(globalThis, 'navigator', {configurable: true, value: {
         clipboard: {async writeText(value) {
@@ -76,10 +79,15 @@ test('public link buttons copy without a visible URL field, including the clipbo
         execCommand(command) { assert.equal(command, 'copy'); copied = temporary.value; return true },
       }
 
-      CopyLink.mounted.call({el})
+      CopyLink.mounted.call({el, pushEvent(event, params, reply) {
+        assert.equal(event, 'copy_public_link')
+        assert.deepEqual(params, {})
+        reply({url})
+      }})
       await handlers.click()
       assert.equal(copied, url)
-      assert.equal(el.textContent, 'Link copied')
+      assert.equal((labelElement || el).textContent, 'Link copied')
+      if (withIcon) assert.equal(el.textContent, 'Copy public link')
       assert.ok(!temporary)
     }
   } finally {

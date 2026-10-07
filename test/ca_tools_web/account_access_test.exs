@@ -55,13 +55,17 @@ defmodule CAToolsWeb.AccountAccessTest do
     })
 
     assert Repo.get!(Accounts.User, user.id).encrypted_credentials == nil
+
+    {:ok, _, html} = live(conn, ~p"/dashboard/community")
+    refute html =~ "Manage Campfire token"
   end
 
   test "signed-in navigation shares a live session", %{
     conn: conn
   } do
     conn = log_in_user(conn, admin_user_fixture())
-    {:ok, view, _} = live(conn, ~p"/dashboard/community")
+    {:ok, view, html} = live(conn, ~p"/dashboard/community")
+    assert html =~ "Manage Campfire token"
 
     for path <- [
           ~p"/dashboard/maps",
@@ -75,13 +79,13 @@ defmodule CAToolsWeb.AccountAccessTest do
 
     {:ok, accounts, _} =
       view
-      |> element("a[href='/dashboard/users']")
+      |> element(".atlas-mobile-navigation-menu a[href='/dashboard/users']")
       |> render_click()
       |> follow_redirect(conn, ~p"/dashboard/users")
 
     {:ok, settings, html} =
       accounts
-      |> element("a[href='/auth/users/settings']")
+      |> element(".atlas-desktop-navigation a[href='/auth/users/settings']")
       |> render_click()
       |> follow_redirect(conn, ~p"/auth/users/settings")
 
@@ -89,7 +93,7 @@ defmodule CAToolsWeb.AccountAccessTest do
 
     assert {:ok, _, _} =
              settings
-             |> element("a.nav-link[href='/dashboard/community']")
+             |> element(".atlas-desktop-navigation a.nav-link[href='/dashboard/community']")
              |> render_click()
              |> follow_redirect(conn, ~p"/dashboard/community")
   end

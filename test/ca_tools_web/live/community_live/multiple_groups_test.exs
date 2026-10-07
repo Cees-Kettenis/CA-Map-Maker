@@ -55,7 +55,18 @@ defmodule CAToolsWeb.CommunityLive.MultipleGroupsTest do
              "/discover/clubs/two"
            )
 
-    view |> element("button[phx-click='select'][phx-value-id='#{two.id}']") |> render_click()
+    view |> element("#tracked-community-list button[phx-value-id='#{two.id}']") |> render_click()
+
+    assert has_element?(
+             view,
+             "#tracked-community-list button[phx-value-id='#{two.id}'][aria-pressed='true']"
+           )
+
+    view |> element("#tracked-community-list button[phx-value-id='#{one.id}']") |> render_click()
+    assert has_element?(view, "#delete-community-dialog[data-target-id='#{one.id}']")
+
+    view |> element("#tracked-community-list button[phx-value-id='#{two.id}']") |> render_click()
+    assert has_element?(view, "#delete-community-dialog[data-target-id='#{two.id}']")
 
     view
     |> form("#community-form", community: %{enabled: false, source_url: two.source_url})

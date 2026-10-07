@@ -43,7 +43,7 @@ defmodule CAToolsWeb.Auth.UserLive.Login do
             phx-mounted={JS.focus()}
           />
           <.button class="btn btn-primary w-full">
-            Log in with email <span aria-hidden="true">→</span>
+            <.icon name="hero-envelope" class="size-4 shrink-0" /> Log in with email
           </.button>
         </.form>
 
@@ -75,9 +75,11 @@ defmodule CAToolsWeb.Auth.UserLive.Login do
             spellcheck="false"
           />
           <.button class="btn btn-primary w-full" name={@form[:remember_me].name} value="true">
-            Log in and stay logged in <span aria-hidden="true">→</span>
+            <.icon name="hero-arrow-right-start-on-rectangle" class="size-4 shrink-0" />
+            Log in and stay logged in
           </.button>
           <.button class="btn btn-primary btn-soft w-full mt-2">
+            <.icon name="hero-arrow-right-start-on-rectangle" class="size-4 shrink-0" />
             Log in only this time
           </.button>
         </.form>
@@ -86,7 +88,7 @@ defmodule CAToolsWeb.Auth.UserLive.Login do
           navigate={~p"/auth/users/register"}
           class="text-sm underline"
         >
-          Create an account
+          <.icon name="hero-user-plus" class="size-4 shrink-0" /> Create an account
         </.link>
       </div>
     </Layouts.app>

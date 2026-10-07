@@ -147,16 +147,21 @@ export const AtlasMap = {
 
 export const CopyLink = {
   mounted() {
-    const label = this.el.textContent.trim()
+    const labelElement = this.el.querySelector('[data-copy-label]') || this.el
+    const label = labelElement.textContent.trim()
     this.el.addEventListener('click', async () => {
+      const url = this.el.dataset.prepareEvent
+        ? await new Promise(resolve => this.pushEvent(this.el.dataset.prepareEvent, {}, reply => resolve(reply.url)))
+        : this.el.dataset.url
+      if (!url) return
       try {
-        await navigator.clipboard.writeText(this.el.dataset.url)
+        await navigator.clipboard.writeText(url)
       } catch {
         const field = this.el.dataset.target && document.querySelector(this.el.dataset.target)
         if (field) { field.focus(); field.select(); return }
 
         const temporary = document.createElement('textarea')
-        temporary.value = this.el.dataset.url
+        temporary.value = url
         temporary.style.cssText = 'position:fixed;left:-9999px'
         document.body.appendChild(temporary)
         temporary.select()
@@ -166,8 +171,8 @@ export const CopyLink = {
           temporary.remove()
         }
       }
-      this.el.textContent = 'Link copied'
-      setTimeout(() => { if (this.el.isConnected) this.el.textContent = label }, 2000)
+      labelElement.textContent = 'Link copied'
+      setTimeout(() => { if (this.el.isConnected) labelElement.textContent = label }, 2000)
     })
   },
 }

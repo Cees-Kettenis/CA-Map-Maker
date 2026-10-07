@@ -465,7 +465,7 @@ defmodule CAToolsWeb.CoreComponents do
       end)
 
     ~H"""
-    <div class="fieldset mb-2">
+    <div class="fieldset">
       <label for={@id}>
         <input
           type="hidden"
@@ -493,7 +493,7 @@ defmodule CAToolsWeb.CoreComponents do
 
   defp select_input(assigns) do
     ~H"""
-    <div class="fieldset mb-2">
+    <div class="fieldset">
       <label for={@id}>
         <span :if={@label} class="label mb-1">{@label}</span>
         <select
@@ -514,7 +514,7 @@ defmodule CAToolsWeb.CoreComponents do
 
   defp textarea_input(assigns) do
     ~H"""
-    <div class="fieldset mb-2">
+    <div class="fieldset">
       <label for={@id}>
         <span :if={@label} class="label mb-1">{@label}</span>
         <textarea
@@ -534,7 +534,7 @@ defmodule CAToolsWeb.CoreComponents do
 
   defp text_input(assigns) do
     ~H"""
-    <div class="fieldset mb-2">
+    <div class="fieldset">
       <label for={@id}>
         <span :if={@label} class="label mb-1">{@label}</span>
         <input

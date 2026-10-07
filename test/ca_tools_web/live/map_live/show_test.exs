@@ -78,6 +78,11 @@ defmodule CAToolsWeb.MapLive.ShowTest do
 
     view |> element("#find-community-meetups") |> render_click()
     assert has_element?(view, "#map-community-selection")
+    assert has_element?(view, "#find-community-meetups[aria-expanded='true']")
+    view |> element("#find-community-meetups") |> render_click()
+    refute has_element?(view, "#map-community-selection")
+    assert has_element?(view, "#find-community-meetups[aria-expanded='false']")
+    view |> element("#find-community-meetups") |> render_click()
 
     for community <- [one, two, three] do
       assert has_element?(view, "#map-community-form input[value='#{community.id}'][checked]")
@@ -148,16 +153,27 @@ defmodule CAToolsWeb.MapLive.ShowTest do
         "https://campfire.nianticlabs.com/discover/clubs/added"
       )
 
+    CATools.Repo.update!(Ecto.Changeset.change(added, club_id: "new-community-club"))
+
+    {:ok, [cached]} =
+      CATools.Communities.add_links(
+        user_scope_fixture(),
+        "https://campfire.nianticlabs.com/discover/clubs/added"
+      )
+
+    CATools.Repo.update!(Ecto.Changeset.change(cached, club_id: "new-community-club"))
+
     source =
       CATools.Repo.insert!(%Maps.MapSource{
-        map_id: added.map_id,
+        map_id: cached.map_id,
         original_url: "https://campfire.nianticlabs.com/discover/meetup/added-event",
         status: :fetched
       })
 
     CATools.Repo.insert!(%Maps.MapPoint{
-      map_id: added.map_id,
+      map_id: cached.map_id,
       map_source_id: source.id,
+      club_id: "new-community-club",
       title: "New community meetup",
       starts_at: ~U[2099-10-03 12:00:00Z],
       latitude: 3.0,
@@ -176,6 +192,12 @@ defmodule CAToolsWeb.MapLive.ShowTest do
     view |> element("button[phx-click='close_communities']") |> render_click()
     assert Enum.map(CATools.MeetupMaps.communities(scope, map.id), & &1.id) == [original.id]
     view |> element("#find-community-meetups") |> render_click()
+
+    view |> element("button[phx-click='select_all_communities']") |> render_click()
+
+    for community <- [original, added] do
+      assert has_element?(view, "#map-community-form input[value='#{community.id}'][checked]")
+    end
 
     assert view
            |> form("#map-community-form", communities: %{community_ids: [original.id, added.id]})
@@ -274,6 +296,20 @@ defmodule CAToolsWeb.MapLive.ShowTest do
     for id <- [regular.id, community.map_id, date_map.id] do
       {:ok, owner, _} = conn |> log_in_user(user) |> live(~p"/dashboard/maps/#{id}")
       assert has_element?(owner, "button[phx-click='toggle_sharing']", "Make public")
+      assert has_element?(owner, "#map-controls summary", "Map Controls")
+      assert has_element?(owner, "#map-controls a[download] .hero-arrow-down-tray")
+
+      assert has_element?(
+               owner,
+               "#map-controls .atlas-map-controls-menu > a:last-child[download]",
+               "Export KML"
+             )
+
+      assert has_element?(
+               owner,
+               "#map-controls button[phx-click='toggle_sharing'] .hero-globe-alt"
+             )
+
       refute has_element?(owner, "#share_url")
       refute has_element?(owner, "#map-sharing")
       refute has_element?(owner, "a", "Open public map")
@@ -283,6 +319,14 @@ defmodule CAToolsWeb.MapLive.ShowTest do
       assert map.visibility == :public
       assert has_element?(owner, "#copy-share[data-url$='/maps/#{map.public_slug}']")
       assert has_element?(owner, "#copy-share", "Copy public link")
+      assert has_element?(owner, "#map-controls #copy-share .hero-clipboard-document")
+      assert has_element?(owner, "#copy-share [data-copy-label]", "Copy public link")
+
+      assert has_element?(
+               owner,
+               "#map-controls button[phx-click='toggle_sharing'] .hero-lock-closed"
+             )
+
       assert has_element?(owner, "button[phx-click='toggle_sharing']", "Make private")
       refute has_element?(owner, "button[phx-click='toggle_sharing']", "Make public")
 

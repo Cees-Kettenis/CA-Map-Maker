@@ -6,10 +6,14 @@ Track multiple Campfire groups, then create a map of their meetups on a chosen d
 
 1. Ask the administrator to configure the [shared Campfire token](campfire-credentials.md).
 2. Open **My Communities**.
-3. Paste one group or invitation link per line and select **Track groups**.
+3. Expand **Add communities**, paste one group or invitation link per line, and select **Track groups**.
 4. Select a group to manage its monitoring and private invitations.
 
 Adding more links preserves your existing groups, maps, and invitations. Repeated links are ignored. You can pause each group separately.
+
+Use the community dropdown to switch groups on desktop or mobile. Search by name, or scroll through five rows at a time. The site's mobile **Menu** button opens navigation and appearance controls. Map actions use two rows, and the community and update panels open above the map on smaller screens.
+
+**Group Settings** contains the group link, monitoring checkbox, last and scheduled update times, and **Save**, **Update now**, and **Delete**. Hover over the information icon beside **Group Link**, or tap it on mobile, to see the group-link warning.
 
 Supported links include `https://campfire.onelink.me/...` invitations,
 `https://cmpf.re/...` short links that resolve to a group, and direct links such
@@ -37,16 +41,16 @@ Both the creation form and the map's community panel show up to five community r
 
 The date covers the whole day using your browser's local time. Each map stays linked to its selected groups. New meetups appear as imports finish, and changed titles, locations, photos, and hosts update automatically. Events moved to another day leave that map. Duplicate meetups appear once.
 
-If a selected group adds its meetup later, select **Find meetups** on the date map. The side panel lists all your current communities, including groups added after you created the map, with the map's existing groups selected. Choose the groups to include and select **Save and find meetups**. This saves the selection and reloads meetups for the map's saved date from the local database, then reports how many new meetups it found. Closing the panel without saving leaves the selection unchanged. Unchecking a group removes its meetups from this map. This action does not contact Campfire or queue imports. The meetup must already be stored locally. Cached Campfire events from the same tracked group can be reused when another account has already imported them; other accounts’ private maps made from pasted meetup links are excluded.
+If a selected group adds its meetup later, select **Find meetups** on the date map. The side panel lists all your current communities, including groups added after you created the map, with the map's existing groups selected. Choose the groups to include, or use **Select all** to select every community, including those hidden by the search. Then select **Save and find meetups**. This saves the selection and reloads meetups for the map's saved date from the local database, then reports how many new meetups it found. Closing the panel without saving leaves the selection unchanged. Unchecking a group removes its meetups from this map. This action does not contact Campfire or queue imports. The meetup must already be stored locally. Cached Campfire events from the same tracked group can be reused when another account has already imported them; other accounts’ private maps made from pasted meetup links are excluded.
 
 A new map may be empty while groups are still being discovered or imported. Open its linked communities to check progress and errors. **Update now** refreshes the selected events. Date maps read the community event records directly without copying them.
 
-Date maps and group maps start private. To share a map publicly, open it from **My Maps** and select **Make public** beside **Export KML** and **Updates**, then **Copy public link**. On **My Communities**, **Manage public link** opens those controls for the selected group. Anyone with a public link can view the map without an account; editing remains restricted to you.
+Date maps and group maps start private. To share a map publicly, open it from **My Maps**, open **Map Controls**, and select **Make public**, then **Copy public link**. On **My Communities**, **Copy public link** makes the selected group's map public and copies its URL directly. Anyone with a public link can view the map without an account; editing remains restricted to you.
 
 ## Invite people to a group map
 
-1. Under **Private sharing**, enter the person's account email and select **Invite**.
-2. Select **Copy link** and send the community link to them.
+1. In **Sharing**, enter the person's account email and select **Invite**.
+2. Select **Copy private link** and send the community link to them.
 3. They create or sign in to a confirmed account using that email.
 
 Invitations grant read access to the map and its KML export. Visitors cannot

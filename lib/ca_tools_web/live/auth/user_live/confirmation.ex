@@ -30,10 +30,10 @@ defmodule CAToolsWeb.Auth.UserLive.Confirmation do
             phx-disable-with="Confirming..."
             class="btn btn-primary w-full"
           >
-            Confirm and stay logged in
+            <.icon name="hero-check" class="size-4 shrink-0" /> Confirm and stay logged in
           </.button>
           <.button phx-disable-with="Confirming..." class="btn btn-primary btn-soft w-full mt-2">
-            Confirm and log in only this time
+            <.icon name="hero-check" class="size-4 shrink-0" /> Confirm and log in only this time
           </.button>
         </.form>
 
@@ -49,7 +49,7 @@ defmodule CAToolsWeb.Auth.UserLive.Confirmation do
           <input type="hidden" name={@form[:token].name} value={@form[:token].value} />
           <%= if @current_scope do %>
             <.button phx-disable-with="Logging in..." class="btn btn-primary w-full">
-              Log in
+              <.icon name="hero-arrow-right-start-on-rectangle" class="size-4 shrink-0" /> Log in
             </.button>
           <% else %>
             <.button
@@ -58,9 +58,11 @@ defmodule CAToolsWeb.Auth.UserLive.Confirmation do
               phx-disable-with="Logging in..."
               class="btn btn-primary w-full"
             >
+              <.icon name="hero-arrow-right-start-on-rectangle" class="size-4 shrink-0" />
               Keep me logged in on this device
             </.button>
             <.button phx-disable-with="Logging in..." class="btn btn-primary btn-soft w-full mt-2">
+              <.icon name="hero-arrow-right-start-on-rectangle" class="size-4 shrink-0" />
               Log me in only this time
             </.button>
           <% end %>

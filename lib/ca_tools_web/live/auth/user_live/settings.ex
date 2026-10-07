@@ -28,7 +28,10 @@ defmodule CAToolsWeb.Auth.UserLive.Settings do
             spellcheck="false"
             required
           />
-          <.button variant="primary" phx-disable-with="Changing...">Change Email</.button>
+          <.button variant="primary" phx-disable-with="Changing..."><.icon
+            name="hero-envelope"
+            class="size-4 shrink-0"
+          /> Change Email</.button>
         </.form>
 
         <div class="divider" />
@@ -65,7 +68,7 @@ defmodule CAToolsWeb.Auth.UserLive.Settings do
             spellcheck="false"
           />
           <.button variant="primary" phx-disable-with="Saving...">
-            Save Password
+            <.icon name="hero-key" class="size-4 shrink-0" /> Save Password
           </.button>
         </.form>
 
@@ -106,10 +109,10 @@ defmodule CAToolsWeb.Auth.UserLive.Settings do
             />
             <div class="flex flex-col gap-2 sm:flex-row">
               <.button variant="secondary" name="intent" value="validate">
-                Check token format
+                <.icon name="hero-check-badge" class="size-4 shrink-0" /> Check token format
               </.button>
               <.button variant="primary" name="intent" value="save" phx-disable-with="Saving...">
-                Save Token
+                <.icon name="hero-key" class="size-4 shrink-0" /> Save Token
               </.button>
             </div>
           </.form>
@@ -120,7 +123,7 @@ defmodule CAToolsWeb.Auth.UserLive.Settings do
             phx-click="delete_campfire_credentials"
             data-confirm="Delete the saved Campfire token?"
           >
-            Delete Saved Token
+            <.icon name="hero-trash" class="size-4 shrink-0" /> Delete Saved Token
           </.button>
         </section>
         <section class="mt-8 border-t border-base-300 pt-6">
@@ -144,7 +147,10 @@ defmodule CAToolsWeb.Auth.UserLive.Settings do
               required
               autocomplete="off"
             />
-            <.button variant="danger" data-confirm="Permanently delete your account and all its data?">Delete my account</.button>
+            <.button variant="danger" data-confirm="Permanently delete your account and all its data?"><.icon
+              name="hero-trash"
+              class="size-4 shrink-0"
+            /> Delete my account</.button>
           </.form>
         </section>
       </div>
