@@ -103,6 +103,66 @@ defmodule CATools.MeetupMaps do
     end
   end
 
+  @doc "Saves an owned date map's community selection using only local records."
+  @spec update_communities(Scope.t(), term(), term()) ::
+          {:ok, UserMap.t()} | {:error, Changeset.t() | :not_found | :not_date_map}
+  def update_communities(scope, map_id, community_ids) do
+    Repo.transact(fn ->
+      Repo.query!("SELECT pg_advisory_xact_lock(73191, $1)", [scope.user.id])
+
+      case CATools.Maps.get_map(scope, map_id) do
+        nil ->
+          {:error, :not_found}
+
+        %UserMap{meetup_date: %Date{}} = map ->
+          changeset =
+            {%{}, %{community_ids: {:array, :integer}}}
+            |> Changeset.cast(%{community_ids: community_ids}, [:community_ids])
+            |> Changeset.validate_required([:community_ids])
+            |> Changeset.validate_length(:community_ids, min: 1)
+
+          ids = Enum.uniq(Changeset.get_field(changeset, :community_ids, []) || [])
+
+          owned_ids =
+            Repo.all(
+              from c in Community,
+                where: c.user_id == ^scope.user.id and c.id in ^ids and not is_nil(c.map_id),
+                select: c.id
+            )
+
+          changeset =
+            if length(owned_ids) == length(ids),
+              do: changeset,
+              else:
+                Changeset.add_error(changeset, :community_ids, "Choose your tracked communities.")
+
+          if changeset.valid? do
+            Repo.delete_all(
+              from s in CommunitySelection,
+                where: s.map_id == ^map.id and s.community_id not in ^ids
+            )
+
+            Enum.each(ids, fn community_id ->
+              Repo.insert!(%CommunitySelection{map_id: map.id, community_id: community_id},
+                on_conflict: :nothing
+              )
+            end)
+
+            {:ok, CATools.Maps.get_map(scope, map.id)}
+          else
+            {:error, %{changeset | action: :update}}
+          end
+
+        _ ->
+          {:error, :not_date_map}
+      end
+    end)
+    |> then(fn result ->
+      if match?({:ok, _}, result), do: CATools.Maps.notify(scope.user.id)
+      result
+    end)
+  end
+
   @doc "Loads shared community events for a date map without copying sources or points."
   @spec load_events(UserMap.t()) :: UserMap.t()
   def load_events(map) do

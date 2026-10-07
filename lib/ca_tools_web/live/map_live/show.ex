@@ -1,7 +1,7 @@
 defmodule CAToolsWeb.MapLive.Show do
   use CAToolsWeb, :live_view
   import CAToolsWeb.MapComponents
-  alias CATools.Maps
+  alias CATools.{Communities, Maps, MeetupMaps}
 
   @impl true
   @doc false
@@ -27,6 +27,9 @@ defmodule CAToolsWeb.MapLive.Show do
            page_title: map.name,
            editing?: false,
            show_progress?: false,
+           show_communities?: false,
+           available_communities: [],
+           community_form: to_form(%{"community_ids" => []}, as: "communities"),
            show_past?: false,
            view_time: DateTime.utc_now(),
            expiry_timer: if(connected?(socket), do: Maps.schedule_expiry(map.points)),
@@ -62,6 +65,14 @@ defmodule CAToolsWeb.MapLive.Show do
             download="pogo-meetups-map.kml"
             class="atlas-button"
           ><.icon name="hero-arrow-down-tray" class="size-4" /> Export KML</.link>
+          <button
+            :if={@map.meetup_date}
+            id="find-community-meetups"
+            phx-click="find_community_meetups"
+            aria-expanded={to_string(@show_communities?)}
+            aria-controls="map-community-selection"
+            class="atlas-button"
+          ><.icon name="hero-magnifying-glass" class="size-4" /> Find meetups from communities</button>
           <button
             phx-click="toggle_progress"
             aria-expanded={to_string(@show_progress?)}
@@ -132,14 +143,66 @@ defmodule CAToolsWeb.MapLive.Show do
           </div>
         </.form>
       </section>
-      <div class={["grid gap-6", @show_progress? && "xl:grid-cols-[1fr_300px]"]}>
+      <div class={[
+        "grid gap-6",
+        (@show_progress? || @show_communities?) && "xl:grid-cols-[1fr_320px]"
+      ]}>
         <section class="atlas-card">
           <.map_canvas id="owner-map" points={@points} now={@view_time} /><div class="px-5 py-4 flex justify-between text-xs">
             <span>{length(Maps.active_points(@points, @view_time))} meetup locations</span>
           </div>
         </section>
-        <aside :if={@show_progress?} id="map-import-progress" class="atlas-card p-5 space-y-5">
-          <.update_summary map={@map} />
+        <aside :if={@show_progress? || @show_communities?} class="space-y-6">
+          <section
+            :if={@show_communities?}
+            id="map-community-selection"
+            aria-labelledby="map-community-heading"
+            class="atlas-card p-5 space-y-4"
+          >
+            <div class="flex items-center justify-between gap-3">
+              <h2 id="map-community-heading" class="font-semibold">Find community meetups</h2>
+              <button
+                type="button"
+                phx-click="close_communities"
+                aria-label="Close communities"
+                class="atlas-button"
+              >
+                <.icon name="hero-x-mark" class="size-4" />
+              </button>
+            </div>
+            <p class="text-sm opacity-65">
+              Choose communities for {@map.meetup_date}. Your current communities are already selected.
+            </p>
+            <.form
+              for={@community_form}
+              id="map-community-form"
+              phx-change="select_communities"
+              phx-submit="save_communities"
+              class="space-y-4"
+            >
+              <.community_selector
+                id="map-community-selector"
+                communities={@available_communities}
+                field={@community_form[:community_ids]}
+              />
+              <.link
+                :if={@available_communities == []}
+                navigate={~p"/dashboard/community"}
+                class="atlas-button"
+              >Add communities first</.link>
+              <p class="text-xs opacity-65">
+                Saves your selection and finds meetups already stored for this date.
+              </p>
+              <.button
+                :if={@available_communities != []}
+                variant="primary"
+                phx-disable-with="Finding meetups..."
+              >Save and find meetups</.button>
+            </.form>
+          </section>
+          <section :if={@show_progress?} id="map-import-progress" class="atlas-card p-5 space-y-5">
+            <.update_summary map={@map} />
+          </section>
         </aside>
       </div>
       <.meetup_section id="owner-meetups" points={@points} show_past={@show_past?} now={@view_time} />
@@ -186,6 +249,71 @@ defmodule CAToolsWeb.MapLive.Show do
       "update_now" ->
         Maps.request_update(scope, id)
         {:noreply, put_flash(socket, :info, "Update started.")}
+
+      "find_community_meetups" ->
+        if socket.assigns.map.meetup_date do
+          linked = MeetupMaps.communities(scope, id)
+
+          {:noreply,
+           assign(socket,
+             show_communities?: true,
+             available_communities: Communities.list(scope),
+             linked_communities: linked,
+             community_form:
+               to_form(%{"community_ids" => Enum.map(linked, & &1.id)}, as: "communities")
+           )}
+        else
+          {:noreply, put_flash(socket, :error, "This action is only available for date maps.")}
+        end
+
+      "close_communities" ->
+        {:noreply, assign(socket, show_communities?: false)}
+
+      "select_communities" ->
+        {:noreply,
+         assign(socket, community_form: to_form(params["communities"] || %{}, as: "communities"))}
+
+      "save_communities" ->
+        if socket.assigns.map.meetup_date do
+          previous_ids = MapSet.new(socket.assigns.map.points, & &1.id)
+          ids = get_in(params, ["communities", "community_ids"]) || []
+
+          case MeetupMaps.update_communities(scope, id, ids) do
+            {:ok, map} ->
+              socket =
+                assign(socket,
+                  map: map,
+                  points: Maps.point_data(map, true),
+                  view_time: DateTime.utc_now(),
+                  expiry_timer: Maps.schedule_expiry(map.points, socket.assigns.expiry_timer),
+                  linked_communities: MeetupMaps.communities(scope, id),
+                  community_form: to_form(%{"community_ids" => ids}, as: "communities")
+                )
+
+              count =
+                socket.assigns.map.points
+                |> MapSet.new(& &1.id)
+                |> MapSet.difference(previous_ids)
+                |> MapSet.size()
+
+              message =
+                case count do
+                  0 -> "No new meetups found in your communities for this date."
+                  1 -> "Found 1 new meetup from your communities."
+                  count -> "Found #{count} new meetups from your communities."
+                end
+
+              {:noreply, put_flash(socket, :info, message)}
+
+            {:error, %Ecto.Changeset{} = changeset} ->
+              {:noreply, assign(socket, community_form: to_form(changeset, as: "communities"))}
+
+            _ ->
+              {:noreply, put_flash(socket, :error, "Could not save the map's communities.")}
+          end
+        else
+          {:noreply, put_flash(socket, :error, "This action is only available for date maps.")}
+        end
 
       "toggle_progress" ->
         {:noreply, assign(socket, show_progress?: !socket.assigns.show_progress?)}

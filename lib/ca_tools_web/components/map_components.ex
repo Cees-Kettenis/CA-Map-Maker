@@ -5,6 +5,52 @@ defmodule CAToolsWeb.MapComponents do
   @external_resource Path.expand("../../../priv/static/images/pogo-meetups-map.svg", __DIR__)
   @map_illustration File.read!(@external_resource)
 
+  attr :id, :string, required: true
+  attr :communities, :list, required: true
+  attr :field, Phoenix.HTML.FormField, required: true
+  @doc "Renders searchable community checkboxes with a scrollable five-row list."
+  @spec community_selector(map()) :: Phoenix.LiveView.Rendered.t()
+  def community_selector(assigns) do
+    ~H"""
+    <fieldset id={@id} phx-hook="CommunitySearch" class="space-y-2">
+      <legend class="text-sm opacity-65 mb-2">Communities</legend>
+      <label for={@id <> "-search"} class="text-sm opacity-65">Search communities</label>
+      <input
+        id={@id <> "-search"}
+        type="search"
+        data-community-search
+        autocomplete="off"
+        placeholder="Search by name"
+        aria-controls={@id <> "-list"}
+        class="input w-full"
+      />
+      <p data-community-results aria-live="polite" class="text-xs opacity-60">
+        {length(@communities)} communities
+      </p>
+      <div id={@id <> "-list"} data-community-list class="atlas-community-options">
+        <label
+          :for={community <- @communities}
+          data-community-option
+          data-community-name={community.name || URI.parse(community.source_url).path}
+          title={community.name || URI.parse(community.source_url).path}
+          class="atlas-community-option flex items-center gap-3 rounded-xl border border-base-300 p-3 cursor-pointer"
+        >
+          <input
+            type="checkbox"
+            class="checkbox checkbox-sm shrink-0"
+            name={@field.name <> "[]"}
+            value={community.id}
+            checked={to_string(community.id) in Enum.map(@field.value || [], &to_string/1)}
+          />
+          <span class="text-sm truncate">{community.name || URI.parse(community.source_url).path}</span>
+        </label>
+      </div>
+      <p data-community-empty hidden class="text-sm opacity-65">No communities match your search.</p>
+      <p :for={{message, _} <- @field.errors} class="text-sm text-error">{message}</p>
+    </fieldset>
+    """
+  end
+
   @doc "Renders the local SVG illustration inline so its route and pins can be animated."
   @spec map_illustration(map()) :: Phoenix.LiveView.Rendered.t()
   def map_illustration(assigns) do

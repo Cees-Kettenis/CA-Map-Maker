@@ -5,6 +5,236 @@ defmodule CAToolsWeb.MapLive.ShowTest do
   import CATools.MapsFixtures
   alias CATools.Maps
 
+  test "find community meetups reloads the saved local date without queueing imports", %{
+    conn: conn
+  } do
+    user = user_fixture()
+    scope = user_scope_fixture(user)
+
+    {:ok, [one, two, three, unselected]} =
+      CATools.Communities.add_links(
+        scope,
+        Enum.map_join(["one", "two", "three", "unselected"], "\n", fn id ->
+          "https://campfire.nianticlabs.com/discover/clubs/#{id}"
+        end)
+      )
+
+    add_meetup = fn community, title, starts_at ->
+      url = "https://campfire.nianticlabs.com/discover/meetup/#{title}"
+
+      source =
+        CATools.Repo.insert!(%Maps.MapSource{
+          map_id: community.map_id,
+          original_url: url,
+          status: :fetched,
+          campfire_id: title
+        })
+
+      CATools.Repo.insert!(%Maps.MapPoint{
+        map_id: community.map_id,
+        map_source_id: source.id,
+        title: title,
+        campfire_id: title,
+        source_url: url,
+        starts_at: starts_at,
+        latitude: 3.0,
+        longitude: 101.0
+      })
+    end
+
+    add_meetup.(one, "First meetup", ~U[2099-10-02 16:00:00Z])
+    add_meetup.(two, "Second meetup", ~U[2099-10-03 12:00:00Z])
+
+    {:ok, map} =
+      CATools.MeetupMaps.create(scope, %{
+        name: "Saturday communities",
+        meetup_date: "2099-10-03",
+        utc_offset_minutes: 480,
+        community_ids: [one.id, two.id, three.id]
+      })
+
+    {:ok, view, _} = conn |> log_in_user(user) |> live(~p"/dashboard/maps/#{map.id}")
+    assert has_element?(view, "#find-community-meetups", "Find meetups from communities")
+    assert element(view, "[data-map-points]") |> render() =~ "First meetup"
+    assert render(view) =~ "2 meetup locations"
+
+    late = add_meetup.(three, "Late third meetup", ~U[2099-10-03 15:59:59Z])
+    add_meetup.(three, "Next day meetup", ~U[2099-10-03 16:00:00Z])
+    add_meetup.(three, "Previous day meetup", ~U[2099-10-02 15:59:59Z])
+    add_meetup.(unselected, "Unselected meetup", ~U[2099-10-03 12:00:00Z])
+
+    {:ok, [foreign]} =
+      CATools.Communities.add_links(
+        user_scope_fixture(),
+        "https://campfire.nianticlabs.com/discover/clubs/foreign"
+      )
+
+    add_meetup.(foreign, "Foreign meetup", ~U[2099-10-03 12:00:00Z])
+    refute render(view) =~ "Late third meetup"
+
+    jobs = CATools.Repo.all(Oban.Job)
+    sources = CATools.Repo.all(Maps.MapSource)
+    points = CATools.Repo.all(Maps.MapPoint)
+
+    view |> element("#find-community-meetups") |> render_click()
+    assert has_element?(view, "#map-community-selection")
+
+    for community <- [one, two, three] do
+      assert has_element?(view, "#map-community-form input[value='#{community.id}'][checked]")
+    end
+
+    refute has_element?(view, "#map-community-form input[value='#{unselected.id}'][checked]")
+    refute has_element?(view, "#map-community-form input[value='#{foreign.id}']")
+
+    html =
+      view
+      |> form("#map-community-form", communities: %{community_ids: [one.id, two.id, three.id]})
+      |> render_submit()
+
+    assert html =~ "Found 1 new meetup from your communities."
+    assert html =~ "3 meetup locations"
+    assert element(view, "[data-map-points]") |> render() =~ "Late third meetup"
+
+    for title <- ["Next day meetup", "Previous day meetup", "Unselected meetup", "Foreign meetup"] do
+      refute html =~ title
+    end
+
+    assert view
+           |> form("#map-community-form",
+             communities: %{community_ids: [one.id, two.id, three.id]}
+           )
+           |> render_submit() =~
+             "No new meetups found in your communities for this date."
+
+    assert CATools.Repo.all(Oban.Job) == jobs
+    assert CATools.Repo.all(Maps.MapSource) == sources
+    assert CATools.Repo.all(Maps.MapPoint) == points
+    assert CATools.Repo.get!(Maps.MapPoint, late.id).map_id == three.map_id
+    assert Maps.get_map(scope, map.id).points_count == 3
+
+    {:ok, public_map} = Maps.update_map(scope, map.id, %{visibility: :public})
+    {:ok, public, html} = live(build_conn(), ~p"/maps/#{public_map.public_slug}")
+    assert html =~ "Late third meetup"
+    refute has_element?(public, "#find-community-meetups")
+  end
+
+  test "community panel includes groups added after the map and persists the selection", %{
+    conn: conn
+  } do
+    user = user_fixture()
+    scope = user_scope_fixture(user)
+
+    {:ok, [original]} =
+      CATools.Communities.add_links(
+        scope,
+        "https://campfire.nianticlabs.com/discover/clubs/original"
+      )
+
+    {:ok, map} =
+      CATools.MeetupMaps.create(scope, %{
+        name: "More communities",
+        meetup_date: "2099-10-03",
+        community_ids: [original.id]
+      })
+
+    {:ok, view, _} = conn |> log_in_user(user) |> live(~p"/dashboard/maps/#{map.id}")
+    view |> element("#find-community-meetups") |> render_click()
+    view |> element("button[phx-click='close_communities']") |> render_click()
+    refute has_element?(view, "#map-community-selection")
+
+    {:ok, [added]} =
+      CATools.Communities.add_links(
+        scope,
+        "https://campfire.nianticlabs.com/discover/clubs/added"
+      )
+
+    source =
+      CATools.Repo.insert!(%Maps.MapSource{
+        map_id: added.map_id,
+        original_url: "https://campfire.nianticlabs.com/discover/meetup/added-event",
+        status: :fetched
+      })
+
+    CATools.Repo.insert!(%Maps.MapPoint{
+      map_id: added.map_id,
+      map_source_id: source.id,
+      title: "New community meetup",
+      starts_at: ~U[2099-10-03 12:00:00Z],
+      latitude: 3.0,
+      longitude: 101.0
+    })
+
+    jobs = CATools.Repo.all(Oban.Job)
+    view |> element("#find-community-meetups") |> render_click()
+    assert has_element?(view, "#map-community-form input[value='#{added.id}']")
+    refute has_element?(view, "#map-community-form input[value='#{added.id}'][checked]")
+
+    view
+    |> form("#map-community-form", communities: %{community_ids: [original.id, added.id]})
+    |> render_change()
+
+    view |> element("button[phx-click='close_communities']") |> render_click()
+    assert Enum.map(CATools.MeetupMaps.communities(scope, map.id), & &1.id) == [original.id]
+    view |> element("#find-community-meetups") |> render_click()
+
+    assert view
+           |> form("#map-community-form", communities: %{community_ids: [original.id, added.id]})
+           |> render_submit() =~ "Found 1 new meetup"
+
+    assert element(view, "[data-map-points]") |> render() =~ "New community meetup"
+
+    assert Enum.map(CATools.MeetupMaps.communities(scope, map.id), & &1.id) == [
+             original.id,
+             added.id
+           ]
+
+    {:ok, reloaded, _} = conn |> log_in_user(user) |> live(~p"/dashboard/maps/#{map.id}")
+    reloaded |> element("#find-community-meetups") |> render_click()
+    assert has_element?(reloaded, "#map-community-form input[value='#{added.id}'][checked]")
+
+    reloaded
+    |> form("#map-community-form", communities: %{community_ids: []})
+    |> render_submit()
+
+    assert Enum.map(CATools.MeetupMaps.communities(scope, map.id), & &1.id) == [
+             original.id,
+             added.id
+           ]
+
+    assert has_element?(reloaded, "#map-community-selection .text-error")
+
+    reloaded
+    |> form("#map-community-form", communities: %{community_ids: [original.id]})
+    |> render_submit()
+
+    refute element(reloaded, "[data-map-points]") |> render() =~ "New community meetup"
+    assert Enum.map(CATools.MeetupMaps.communities(scope, map.id), & &1.id) == [original.id]
+    assert CATools.Repo.all(Oban.Job) == jobs
+  end
+
+  test "find community meetups is unavailable for pasted and community maps", %{conn: conn} do
+    user = user_fixture()
+    scope = user_scope_fixture(user)
+    regular = map_fixture(scope)
+
+    {:ok, [community]} =
+      CATools.Communities.add_links(
+        scope,
+        "https://campfire.nianticlabs.com/discover/clubs/regular"
+      )
+
+    for id <- [regular.id, community.map_id] do
+      {:ok, view, _} = conn |> log_in_user(user) |> live(~p"/dashboard/maps/#{id}")
+      refute has_element?(view, "#find-community-meetups")
+      jobs = CATools.Repo.all(Oban.Job)
+
+      assert render_click(view, "find_community_meetups") =~
+               "This action is only available for date maps."
+
+      assert CATools.Repo.all(Oban.Job) == jobs
+    end
+  end
+
   test "owners enable and revoke anonymous read-only links for regular and community maps", %{
     conn: conn
   } do

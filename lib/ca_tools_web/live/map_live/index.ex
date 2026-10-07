@@ -1,5 +1,6 @@
 defmodule CAToolsWeb.MapLive.Index do
   use CAToolsWeb, :live_view
+  import CAToolsWeb.MapComponents, only: [community_selector: 1]
   alias CATools.{Accounts, Communities, Maps, MeetupMaps}
   alias CAToolsWeb.RequestSecurity
 
@@ -138,6 +139,7 @@ defmodule CAToolsWeb.MapLive.Index do
             for={@meetup_form}
             id="meetup-map-form"
             phx-hook="MeetupDate"
+            phx-change="select_meetup_communities"
             phx-submit="create_meetup"
             class="space-y-4"
           >
@@ -154,30 +156,11 @@ defmodule CAToolsWeb.MapLive.Index do
               name="meetup[utc_offset_minutes]"
               value={@meetup_form[:utc_offset_minutes].value || 0}
             />
-            <fieldset class="space-y-2">
-              <legend class="text-sm opacity-65 mb-2">Communities</legend>
-              <label
-                :for={community <- @communities}
-                class="flex items-center gap-3 rounded-xl border border-base-300 p-3 cursor-pointer"
-              >
-                <input
-                  type="checkbox"
-                  class="checkbox checkbox-sm"
-                  name="meetup[community_ids][]"
-                  value={community.id}
-                  checked={
-                    to_string(community.id) in Enum.map(
-                      @meetup_form[:community_ids].value || [],
-                      &to_string/1
-                    )
-                  }
-                />
-                <span class="text-sm truncate">{community.name || URI.parse(community.source_url).path}</span>
-              </label>
-              <p :for={{message, _} <- @meetup_form[:community_ids].errors} class="text-sm text-error">
-                {message}
-              </p>
-            </fieldset>
+            <.community_selector
+              id="meetup-community-selector"
+              communities={@communities}
+              field={@meetup_form[:community_ids]}
+            />
             <.link :if={@communities == []} navigate={~p"/dashboard/community"} class="atlas-button">Add communities first</.link>
             <p class="text-xs opacity-65">
               Creates a private map that stays linked to these groups. Meetup details update as imports finish.
@@ -322,6 +305,9 @@ defmodule CAToolsWeb.MapLive.Index do
            :map_mode,
            if(params["mode"] == "communities", do: "communities", else: "links")
          )}
+
+      "select_meetup_communities" ->
+        {:noreply, assign(socket, meetup_form: to_form(params["meetup"] || %{}, as: "meetup"))}
 
       "create_meetup" ->
         with :ok <- RequestSecurity.check_limits([{:map_create_ip, socket.assigns.client_ip}]),

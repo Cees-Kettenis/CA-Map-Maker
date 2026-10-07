@@ -31,7 +31,11 @@ Finished meetups leave map pins when their Campfire end time passes. They are hi
 2. Enter a name and select a date.
 3. Check the groups to include and select **Create meetup map**.
 
+Both the creation form and the map's community panel show up to five community rows at a time. Scroll to reach the remaining groups, or use **Search communities** to filter by name. Searching preserves checked and unchecked communities, including groups hidden by the filter.
+
 The date covers the whole day using your browser's local time. Each map stays linked to its selected groups. New meetups appear as imports finish, and changed titles, locations, photos, and hosts update automatically. Events moved to another day leave that map. Duplicate meetups appear once.
+
+If a selected group adds its meetup later, select **Find meetups from communities** on the date map. The side panel lists all your current communities, including groups added after you created the map, with the map's existing groups selected. Choose the groups to include and select **Save and find meetups**. This saves the selection and reloads meetups for the map's saved date from the local database, then reports how many new meetups it found. Closing the panel without saving leaves the selection unchanged. Unchecking a group removes its meetups from this map. This action does not contact Campfire or queue imports. The meetup must already be stored locally through community monitoring.
 
 A new map may be empty while groups are still being discovered or imported. Open its linked communities to check progress and errors. **Update now** refreshes the selected events. Date maps read the community event records directly without copying them.
 

@@ -115,6 +115,58 @@ defmodule CATools.MeetupMapsTest do
     assert empty.points_count == 0
   end
 
+  test "changing communities validates ownership and preserves the map and shared records" do
+    owner = user_scope_fixture()
+    stranger = user_scope_fixture()
+
+    {:ok, [one, two]} =
+      Communities.add_links(
+        owner,
+        "https://campfire.nianticlabs.com/discover/clubs/one\nhttps://campfire.nianticlabs.com/discover/clubs/two"
+      )
+
+    {:ok, [foreign]} =
+      Communities.add_links(stranger, "https://campfire.nianticlabs.com/discover/clubs/foreign")
+
+    first = add_point(one, "first", ~U[2099-10-03 12:00:00Z])
+    second = add_point(two, "second", ~U[2099-10-03 12:00:00Z])
+
+    {:ok, map} =
+      MeetupMaps.create(owner, %{
+        name: "Saved date",
+        meetup_date: "2099-10-03",
+        utc_offset_minutes: 480,
+        community_ids: [one.id]
+      })
+
+    {:ok, map} = Maps.update_map(owner, map.id, %{visibility: :public, description: "Keep this"})
+    jobs = Repo.all(Oban.Job)
+
+    assert {:error, :not_found} = MeetupMaps.update_communities(stranger, map.id, [foreign.id])
+    assert {:error, :not_date_map} = MeetupMaps.update_communities(owner, one.map_id, [two.id])
+
+    for invalid <- [[foreign.id], [two.id, foreign.id], [], nil, ["bad"], "bad", [-1]] do
+      assert {:error, %Ecto.Changeset{}} = MeetupMaps.update_communities(owner, map.id, invalid)
+      assert Enum.map(MeetupMaps.communities(owner, map.id), & &1.id) == [one.id]
+    end
+
+    assert {:ok, updated} =
+             MeetupMaps.update_communities(owner, map.id, ["#{two.id}", "#{two.id}"])
+
+    assert Enum.map(MeetupMaps.communities(owner, map.id), & &1.id) == [two.id]
+    assert Enum.map(updated.points, & &1.id) == [second.id]
+    assert updated.meetup_date == map.meetup_date
+    assert updated.utc_offset_minutes == map.utc_offset_minutes
+    assert updated.name == map.name
+    assert updated.description == map.description
+    assert updated.visibility == map.visibility
+    assert updated.public_slug == map.public_slug
+    assert Enum.map(Maps.get_public_map(map.public_slug).points, & &1.id) == [second.id]
+    assert Repo.get!(MapPoint, first.id).map_id == one.map_id
+    assert Repo.get!(MapPoint, second.id).map_id == two.map_id
+    assert Repo.all(Oban.Job) == jobs
+  end
+
   test "date map validation rejects foreign groups, missing dates and invalid offsets" do
     owner = user_scope_fixture()
 

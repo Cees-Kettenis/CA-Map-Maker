@@ -1,6 +1,55 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import {AtlasMap, CopyLink} from '../../assets/js/map_hooks.js'
+import {AtlasMap, CopyLink, CommunitySearch} from '../../assets/js/map_hooks.js'
+
+test('community search preserves selections and filtering across LiveView updates', () => {
+  const search = {value: ''}
+  const list = {scrollTop: 200}
+  const results = {textContent: ''}
+  const empty = {hidden: true}
+  const options = [
+    {dataset: {communityName: 'Butterworth Raid Crew'}, hidden: false, checked: true},
+    {dataset: {communityName: 'Bayan Baru Trainers'}, hidden: false, checked: false},
+  ]
+  const listeners = {}
+  const hook = {el: {
+    querySelector(selector) {
+      return {
+        '[data-community-search]': search,
+        '[data-community-list]': list,
+        '[data-community-results]': results,
+        '[data-community-empty]': empty,
+      }[selector]
+    },
+    querySelectorAll() { return options },
+    addEventListener(event, listener) { listeners[event] = listener },
+    removeEventListener(event, listener) { assert.equal(listeners[event], listener); delete listeners[event] },
+  }, ...CommunitySearch}
+
+  hook.mounted()
+  search.value = '  BUTTERWORTH  '
+  listeners.input({target: {...search, matches() { return true }}})
+  assert.deepEqual(options.map(option => option.hidden), [false, true])
+  assert.deepEqual(options.map(option => option.checked), [true, false])
+  assert.equal(results.textContent, '1 of 2 communities')
+  assert.equal(list.scrollTop, 0)
+
+  options.push({dataset: {communityName: 'Butterworth Weekend Trainers'}, hidden: false, checked: false})
+  search.value = ''
+  hook.updated()
+  assert.equal(search.value, '  BUTTERWORTH  ')
+  assert.equal(results.textContent, '2 of 3 communities')
+  assert.deepEqual(options.map(option => option.checked), [true, false, false])
+
+  listeners.input({target: {value: 'unknown group', matches() { return true }}})
+  assert.equal(empty.hidden, false)
+  assert.ok(options.every(option => option.hidden))
+  listeners.input({target: {value: '', matches() { return true }}})
+  assert.equal(empty.hidden, true)
+  assert.ok(options.every(option => !option.hidden))
+  hook.destroyed()
+  assert.equal(listeners.input, undefined)
+})
 
 test('public link buttons copy without a visible URL field, including the clipboard fallback', async () => {
   const previousNavigator = Object.getOwnPropertyDescriptor(globalThis, 'navigator')

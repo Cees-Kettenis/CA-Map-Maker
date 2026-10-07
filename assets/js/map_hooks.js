@@ -1,5 +1,35 @@
 import {formatMeetupTime} from "./local_time.js"
 
+export const CommunitySearch = {
+  mounted() {
+    this.query = ''
+    this.onSearch = event => {
+      if (!event.target.matches('[data-community-search]')) return
+      this.query = event.target.value
+      this.filterCommunities()
+      this.el.querySelector('[data-community-list]').scrollTop = 0
+    }
+    this.el.addEventListener('input', this.onSearch)
+    this.filterCommunities()
+  },
+  updated() {
+    this.el.querySelector('[data-community-search]').value = this.query
+    this.filterCommunities()
+  },
+  filterCommunities() {
+    const query = this.query.trim().toLocaleLowerCase()
+    const options = Array.from(this.el.querySelectorAll('[data-community-option]'))
+    let count = 0
+    options.forEach(option => {
+      option.hidden = !option.dataset.communityName.toLocaleLowerCase().includes(query)
+      if (!option.hidden) count++
+    })
+    this.el.querySelector('[data-community-results]').textContent = `${count} of ${options.length} communities`
+    this.el.querySelector('[data-community-empty]').hidden = count !== 0
+  },
+  destroyed() { this.el.removeEventListener('input', this.onSearch) },
+}
+
 function meetupImage(value, alt, className) {
   if (!value) return null
   try {
