@@ -81,7 +81,7 @@ defmodule CAToolsWeb.MapLive.Public do
     <Layouts.app flash={@flash} current_scope={@current_scope} compact>
       <div class="flex flex-wrap justify-between items-center gap-3 mb-2 sm:gap-5 sm:mb-8">
         <.map_identity map={@map} />
-        <.link href={@export_url} download="pogo-meetups-map.kml" class="atlas-button"><.icon
+        <.link :if={@shared?} href={@export_url} download="pogo-meetups-map.kml" class="atlas-button"><.icon
           name="hero-arrow-down-tray"
           class="size-4"
         /> Export KML</.link>

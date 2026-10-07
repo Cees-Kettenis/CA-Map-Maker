@@ -443,7 +443,7 @@ defmodule CAToolsWeb.MapLive.ShowTest do
            )
 
     assert has_element?(public, ".atlas-meetup-host", "Trainer Host")
-    assert has_element?(public, "a[download]")
+    refute has_element?(public, "a[download]")
   end
 
   test "owner edits metadata and visibility, then deletes their map", %{conn: conn} do
