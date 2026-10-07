@@ -54,7 +54,7 @@ defmodule CAToolsWeb.MapLive.ShowTest do
       })
 
     {:ok, view, _} = conn |> log_in_user(user) |> live(~p"/dashboard/maps/#{map.id}")
-    assert has_element?(view, "#find-community-meetups", "Find meetups from communities")
+    assert has_element?(view, "#find-community-meetups", "Find meetups")
     assert element(view, "[data-map-points]") |> render() =~ "First meetup"
     assert render(view) =~ "2 meetup locations"
 

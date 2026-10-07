@@ -50,9 +50,9 @@ defmodule CAToolsWeb.MapLive.Show do
         name="hero-arrow-left"
         class="size-3"
       /> My Maps</.link>
-      <div class="flex flex-wrap justify-between items-end gap-5 mb-7">
+      <div class="atlas-owner-map-header flex flex-wrap justify-between items-end gap-5 mb-7">
         <.map_identity map={@map} />
-        <div class="flex flex-wrap gap-2">
+        <div class="atlas-owner-map-actions flex flex-wrap gap-2">
           <button
             phx-click={JS.dispatch("atlas:open", to: "#delete-map-dialog")}
             class="atlas-button atlas-button-danger"
@@ -71,8 +71,9 @@ defmodule CAToolsWeb.MapLive.Show do
             phx-click="find_community_meetups"
             aria-expanded={to_string(@show_communities?)}
             aria-controls="map-community-selection"
+            title="Find meetups from communities"
             class="atlas-button"
-          ><.icon name="hero-magnifying-glass" class="size-4" /> Find meetups from communities</button>
+          ><.icon name="hero-magnifying-glass" class="size-4" /> Find meetups</button>
           <button
             phx-click="toggle_progress"
             aria-expanded={to_string(@show_progress?)}

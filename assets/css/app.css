@@ -121,6 +121,13 @@ body { display: flex; flex-direction: column; min-height: 100vh; min-height: 100
 .atlas-button { transition: background .18s, border-color .18s, box-shadow .18s; }
 .atlas-button:hover { background: var(--atlas-success-bg); border-color: color-mix(in srgb, var(--atlas-accent) 35%, var(--atlas-line)); }
 .atlas-button:disabled { opacity: .5; cursor: wait; }
+@media (min-width: 1280px) {
+  .atlas-owner-map-header { flex-wrap: nowrap; }
+  .atlas-owner-map-header > :first-child { flex: 1; }
+  .atlas-owner-map-header h1, .atlas-owner-map-header p { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .atlas-owner-map-actions { flex-wrap: nowrap; flex-shrink: 0; }
+  .atlas-owner-map-actions .atlas-button { padding-inline: 12px; white-space: nowrap; }
+}
 .atlas-map { height: 510px; width: 100%; background: #e4e4e7; z-index: 0; }
 .atlas-map .leaflet-container { font-family: inherit; }
 .atlas-map-art { background-color: #e9edf3; background-image: url('/images/pogo-meetups-map.svg'); background-size: cover; background-position: center; }
