@@ -31,6 +31,50 @@ defmodule CATools.Campfire.Importer do
     end
   end
 
+  @doc "Populates a newly tracked group from existing local community events without external requests."
+  @spec copy_group_events(CATools.Communities.Community.t()) ::
+          {:ok, :copied} | {:error, term()}
+  def copy_group_events(community) do
+    Repo.transact(fn ->
+      Repo.query!("SELECT pg_advisory_xact_lock(73191, $1)", [community.user_id])
+
+      if community.club_id do
+        Repo.all(
+          from p in MapPoint,
+            join: c in CATools.Communities.Community,
+            on: c.map_id == p.map_id,
+            join: s in assoc(p, :source),
+            where:
+              c.club_id == ^community.club_id and c.map_id != ^community.map_id and
+                s.status == :fetched,
+            order_by: [desc: p.updated_at, asc: p.id],
+            select: {p, s}
+        )
+        |> Enum.uniq_by(fn {point, _} -> point.campfire_id || point.source_url || point.id end)
+        |> Enum.each(fn {point, source} ->
+          attrs =
+            Map.take(
+              point,
+              MapPoint.__schema__(:fields) --
+                [:id, :map_id, :map_source_id, :inserted_at, :updated_at]
+            )
+
+          store_group_event(
+            community.map_id,
+            %{
+              resolved_url: source.resolved_url || source.original_url,
+              campfire_id: source.campfire_id
+            },
+            attrs,
+            source.last_fetched_at || DateTime.utc_now(:second)
+          )
+        end)
+      end
+
+      {:ok, :copied}
+    end)
+  end
+
   defp load_source(source_id) do
     MapSource
     |> where([source], source.id == ^source_id)
@@ -54,7 +98,17 @@ defmodule CATools.Campfire.Importer do
   end
 
   defp run_import({:ok, source}, opts) do
-    with {:ok, resolved_source} <- LinkResolver.resolve_source_url(source.original_url, opts),
+    resolved =
+      case {URI.parse(source.original_url).host,
+            LinkResolver.extract_resource_from_url(source.original_url)} do
+        {"campfire.nianticlabs.com", {:ok, resource}} ->
+          {:ok, Map.put(resource, :resolved_url, source.original_url)}
+
+        _ ->
+          LinkResolver.resolve_source_url(source.original_url, opts)
+      end
+
+    with {:ok, resolved_source} <- resolved,
          {:ok, graphql_resource} <-
            GraphQLClient.fetch_resource(source.map.user, resolved_source, opts),
          {:ok, point_attrs} <-
@@ -101,7 +155,23 @@ defmodule CATools.Campfire.Importer do
 
   defp persist_import(source, resolved_source, point_attrs) do
     Repo.transact(fn ->
-      Repo.query!("SELECT pg_advisory_xact_lock(73191, $1)", [source.map.user_id])
+      origin = Repo.get_by(CATools.Communities.Community, map_id: source.map_id)
+
+      shared_maps =
+        if origin && origin.club_id && origin.club_id == point_attrs.club_id do
+          Repo.all(
+            from c in CATools.Communities.Community,
+              where: c.club_id == ^origin.club_id and c.map_id != ^source.map_id,
+              select: {c.user_id, c.map_id}
+          )
+        else
+          []
+        end
+
+      [source.map.user_id | Enum.map(shared_maps, &elem(&1, 0))]
+      |> Enum.uniq()
+      |> Enum.sort()
+      |> Enum.each(&Repo.query!("SELECT pg_advisory_xact_lock(73191, $1)", [&1]))
 
       batch =
         if source.import_batch_id, do: Repo.get(CATools.Maps.ImportBatch, source.import_batch_id)
@@ -111,6 +181,21 @@ defmodule CATools.Campfire.Importer do
       with {:ok, updated_source} <- update_source(source, resolved_source),
            {:ok, _point} <- upsert_point(source, point_attrs),
            {:ok, _map} <- refresh_map_counters(Repo, updated_source.map_id) do
+        # Keep local account views available if another subscriber later removes the group.
+        Enum.each(shared_maps, fn {_user_id, map_id} ->
+          if Repo.exists?(
+               from c in CATools.Communities.Community,
+                 where: c.map_id == ^map_id and c.club_id == ^origin.club_id
+             ) do
+            store_group_event(
+              map_id,
+              resolved_source,
+              point_attrs,
+              updated_source.last_fetched_at
+            )
+          end
+        end)
+
         {:ok, Repo.preload(updated_source, [:point, map: :user])}
       else
         {:error, reason} ->
@@ -129,7 +214,24 @@ defmodule CATools.Campfire.Importer do
     end
   end
 
-  defp update_source(source, resolved_source) do
+  defp store_group_event(map_id, resolved_source, point_attrs, fetched_at) do
+    existing =
+      if point_attrs.campfire_id,
+        do: Repo.get_by(MapSource, map_id: map_id, campfire_id: point_attrs.campfire_id)
+
+    source =
+      existing ||
+        Repo.get_by(MapSource, map_id: map_id, original_url: resolved_source.resolved_url) ||
+        %MapSource{map_id: map_id, original_url: resolved_source.resolved_url}
+
+    source = Repo.preload(source, :point)
+    {:ok, source} = update_source(source, resolved_source, fetched_at)
+    {:ok, _point} = upsert_point(source, point_attrs)
+    {:ok, _map} = refresh_map_counters(Repo, map_id)
+    CATools.Maps.refresh_batch(source.import_batch_id)
+  end
+
+  defp update_source(source, resolved_source, fetched_at \\ DateTime.utc_now(:second)) do
     source
     |> Changeset.change(
       resolved_url: resolved_source.resolved_url,
@@ -137,10 +239,10 @@ defmodule CATools.Campfire.Importer do
       status: :fetched,
       error_code: nil,
       error_message: nil,
-      last_fetched_at: DateTime.utc_now(:second)
+      last_fetched_at: fetched_at
     )
     |> Changeset.unique_constraint(:campfire_id, name: :map_sources_map_id_campfire_id_index)
-    |> Repo.update()
+    |> Repo.insert_or_update()
   end
 
   defp upsert_point(source, point_attrs) do
@@ -176,6 +278,7 @@ defmodule CATools.Campfire.Importer do
         loaded_map
         |> Changeset.change(
           points_count: points_count,
+          sources_count: repo.aggregate(from(s in MapSource, where: s.map_id == ^map_id), :count),
           last_imported_at: DateTime.utc_now(:second)
         )
         |> repo.update()

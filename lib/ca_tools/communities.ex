@@ -8,6 +8,20 @@ defmodule CATools.Communities do
   alias CATools.Repo
   alias Ecto.Changeset
 
+  @doc "Notifies every account tracking this Campfire group that its shared data changed."
+  @spec notify_group(Community.t()) :: :ok
+  def notify_group(community) do
+    club_id = community.club_id || ""
+
+    Repo.all(
+      from c in Community,
+        where: c.club_id == ^club_id or c.source_url == ^community.source_url,
+        select: c.user_id,
+        distinct: true
+    )
+    |> Enum.each(&CATools.Maps.notify/1)
+  end
+
   @doc "Lists this account's tracked communities in the order they were added."
   @spec list(Scope.t()) :: [Community.t()]
   def list(scope) do
@@ -145,14 +159,59 @@ defmodule CATools.Communities do
           do: Changeset.put_change(changeset, :next_check_at, nil),
           else: changeset
 
+      changeset =
+        if changed? or is_nil(existing.map_id) do
+          source_url = Changeset.get_field(changeset, :source_url)
+
+          club_id =
+            case CATools.Campfire.ClubResolver.club_id(source_url) do
+              {:ok, club_id} -> club_id
+              _ -> ""
+            end
+
+          shared =
+            Repo.one(
+              from c in Community,
+                where:
+                  (c.source_url == ^source_url or c.club_id == ^club_id) and
+                    not is_nil(c.last_checked_at) and not is_nil(c.map_id),
+                order_by: [desc: c.last_checked_at],
+                limit: 1
+            )
+
+          if shared do
+            Repo.update!(
+              Changeset.change(Repo.get!(UserMap, map_id), name: shared.name || "My Community")
+            )
+
+            Changeset.change(changeset,
+              club_id: shared.club_id,
+              name: shared.name,
+              avatar_url: shared.avatar_url,
+              cursor: shared.cursor,
+              last_checked_at: shared.last_checked_at,
+              next_check_at: shared.next_check_at
+            )
+          else
+            changeset
+          end
+        else
+          changeset
+        end
+
       community =
         case Repo.insert_or_update(changeset) do
           {:ok, community} -> Repo.preload(community, :invitations, force: true)
           {:error, changeset} -> Repo.rollback(changeset)
         end
 
-      if community.enabled,
-        do: Oban.insert!(CommunitySyncJob.new(%{"community_id" => community.id}))
+      if changed? or is_nil(existing.map_id),
+        do: CATools.Campfire.Importer.copy_group_events(community)
+
+      if community.enabled &&
+           (is_nil(community.next_check_at) or
+              DateTime.compare(community.next_check_at, DateTime.utc_now()) != :gt),
+         do: Oban.insert!(CommunitySyncJob.new(%{"community_id" => community.id}))
 
       {:ok, community}
     end)

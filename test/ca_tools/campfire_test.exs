@@ -527,6 +527,10 @@ defmodule CATools.CampfireTest do
 
       assert point.starts_at == ~U[2026-06-02 10:00:00Z]
 
+      Repo.update_all(CATools.Campfire.ResponseCache,
+        set: [fetched_at: DateTime.add(DateTime.utc_now(:second), -86_401)]
+      )
+
       assert {:ok, _} =
                Importer.import_source(source.id,
                  request_options: [plug: {Req.Test, CATools.Campfire.ImportJobTestStub}]

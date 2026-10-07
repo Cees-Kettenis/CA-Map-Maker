@@ -17,9 +17,11 @@ as `https://campfire.nianticlabs.com/discover/clubs/...`. An invitation must
 identify a group, rather than an individual meetup. Your Campfire account must
 be able to access that group; saving a link does not join it for you.
 
-The first check fetches the community and its upcoming events. Subsequent checks run once a day. Each check follows all available pages of upcoming events.
+The first check looks for the community and its upcoming events in the shared local database. Campfire responses stay fresh for 24 hours. Tracking a group that another account has already imported reuses its stored metadata and meetups immediately. Accounts keep separate maps, monitoring preferences, visibility, and invitations. Removing a group from one account leaves other accounts' copies available.
 
-Use **Update now** for an immediate refresh. The update panel shows when data was last updated and when the next update is scheduled.
+Subsequent checks run once a day. Each check follows all available pages of upcoming events. Concurrent requests for the same group or meetup share one fetch through database locks, including across application instances. Successful event imports update every account tracking that group. Failed responses are not cached.
+
+Use **Update now** for an immediate refresh. Manual refreshes reuse responses fetched within the last 60 seconds so simultaneous account updates do not repeat the same Campfire request. Group Settings shows when data was last updated and when the next update is scheduled.
 
 Images are downloaded once per URL and served from local storage. Meetup cards and map popups show square cover photos and the host's name and profile picture when available. Meetups without a cover photo use their community's existing cached logo, including on maps that combine multiple communities. Newly imported pasted meetups can also use a tracked community logo through their Campfire group ID. Older pasted meetups need an update to record that ID. Meetups sharing a location appear in one popup with the next meetup first.
 
@@ -35,7 +37,7 @@ Both the creation form and the map's community panel show up to five community r
 
 The date covers the whole day using your browser's local time. Each map stays linked to its selected groups. New meetups appear as imports finish, and changed titles, locations, photos, and hosts update automatically. Events moved to another day leave that map. Duplicate meetups appear once.
 
-If a selected group adds its meetup later, select **Find meetups** on the date map. The side panel lists all your current communities, including groups added after you created the map, with the map's existing groups selected. Choose the groups to include and select **Save and find meetups**. This saves the selection and reloads meetups for the map's saved date from the local database, then reports how many new meetups it found. Closing the panel without saving leaves the selection unchanged. Unchecking a group removes its meetups from this map. This action does not contact Campfire or queue imports. The meetup must already be stored locally through community monitoring.
+If a selected group adds its meetup later, select **Find meetups** on the date map. The side panel lists all your current communities, including groups added after you created the map, with the map's existing groups selected. Choose the groups to include and select **Save and find meetups**. This saves the selection and reloads meetups for the map's saved date from the local database, then reports how many new meetups it found. Closing the panel without saving leaves the selection unchanged. Unchecking a group removes its meetups from this map. This action does not contact Campfire or queue imports. The meetup must already be stored locally. Cached Campfire events from the same tracked group can be reused when another account has already imported them; other accounts’ private maps made from pasted meetup links are excluded.
 
 A new map may be empty while groups are still being discovered or imported. Open its linked communities to check progress and errors. **Update now** refreshes the selected events. Date maps read the community event records directly without copying them.
 

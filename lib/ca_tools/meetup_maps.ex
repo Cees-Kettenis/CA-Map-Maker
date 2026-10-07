@@ -163,7 +163,7 @@ defmodule CATools.MeetupMaps do
     end)
   end
 
-  @doc "Loads shared community events for a date map without copying sources or points."
+  @doc "Loads date-matched events for selected groups, reusing locally cached Campfire community events without copying records."
   @spec load_events(UserMap.t()) :: UserMap.t()
   def load_events(map) do
     case map.meetup_date do
@@ -177,34 +177,72 @@ defmodule CATools.MeetupMaps do
         points =
           Repo.all(
             from p in MapPoint,
+              join: owner in UserMap,
+              on: owner.id == p.map_id,
+              left_join: origin in Community,
+              on: origin.map_id == p.map_id,
+              join: source in assoc(p, :source),
               join: c in Community,
-              on: c.map_id == p.map_id,
+              on: c.map_id == p.map_id or c.club_id == p.club_id,
               join: s in CommunitySelection,
               on: s.community_id == c.id,
               where:
                 s.map_id == ^map.id and c.user_id == ^map.user_id and
+                  (owner.user_id == ^map.user_id or
+                     (origin.club_id == c.club_id and source.status == :fetched)) and
                   p.starts_at >= ^start and p.starts_at < ^finish,
               order_by: [desc: p.updated_at, asc: p.id],
               preload: [:source]
           )
-          |> Enum.uniq_by(&(&1.campfire_id || &1.source_url || &1.id))
 
-        sources = Enum.map(points, & &1.source)
-        dates = Enum.map(sources, & &1.last_fetched_at) |> Enum.reject(&is_nil/1)
-        last = Enum.max_by(dates, &DateTime.to_unix/1, fn -> nil end)
-
-        %{
-          map
-          | points: points,
-            sources: sources,
-            batches: [],
-            points_count: length(points),
-            sources_count: length(sources),
-            last_imported_at: last
-        }
+        attach_events(%{map | batches: []}, points)
 
       _ ->
-        map
+        case map.community do
+          %Community{club_id: club_id} when is_binary(club_id) ->
+            points =
+              Repo.all(
+                from p in MapPoint,
+                  join: c in Community,
+                  on: c.map_id == p.map_id,
+                  join: source in assoc(p, :source),
+                  where:
+                    c.map_id == ^map.id or
+                      (c.club_id == ^club_id and source.status == :fetched),
+                  order_by: [desc: p.updated_at, asc: p.id],
+                  preload: [:source]
+              )
+
+            attach_events(map, points)
+
+          _ ->
+            map
+        end
     end
+  end
+
+  defp attach_events(map, points) do
+    points = Enum.uniq_by(points, &(&1.campfire_id || &1.source_url || &1.id))
+    sources = Enum.map(points, & &1.source)
+
+    sources =
+      if is_nil(map.meetup_date),
+        do: Enum.uniq_by(sources ++ map.sources, & &1.original_url),
+        else: sources
+
+    last =
+      sources
+      |> Enum.map(& &1.last_fetched_at)
+      |> Enum.reject(&is_nil/1)
+      |> Enum.max_by(&DateTime.to_unix/1, fn -> nil end)
+
+    %{
+      map
+      | points: points,
+        sources: sources,
+        points_count: length(points),
+        sources_count: length(sources),
+        last_imported_at: last
+    }
   end
 end

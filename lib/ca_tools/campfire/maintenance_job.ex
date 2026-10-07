@@ -59,6 +59,12 @@ defmodule CATools.Campfire.MaintenanceJob do
 
     now = DateTime.utc_now(:second)
 
+    cache_cutoff = DateTime.add(now, -7 * 86_400, :second)
+
+    Repo.delete_all(
+      from cache in CATools.Campfire.ResponseCache, where: cache.fetched_at < ^cache_cutoff
+    )
+
     Repo.all(
       from c in CATools.Communities.Community,
         where:

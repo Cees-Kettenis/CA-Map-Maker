@@ -8,6 +8,95 @@ defmodule CATools.CommunitiesTest do
   alias CATools.Communities.Community
   alias CATools.Maps.MapSource
 
+  test "accounts share discovery and imports while retaining their own maps after another account deletes a group" do
+    original = Application.fetch_env!(:ca_tools, GraphQLClient)
+
+    Application.put_env(
+      :ca_tools,
+      GraphQLClient,
+      Keyword.put(original, :request_options, plug: {Req.Test, __MODULE__})
+    )
+
+    on_exit(fn -> Application.put_env(:ca_tools, GraphQLClient, original) end)
+
+    {:ok, admin} =
+      Accounts.update_user_campfire_token(
+        admin_user_fixture(),
+        %{"campfire_token_input" => "shared-test-token"}
+      )
+
+    first_scope = user_scope_fixture(admin)
+    second_scope = user_scope_fixture()
+    third_scope = user_scope_fixture()
+    attrs = %{source_url: "https://campfire.nianticlabs.com/discover/clubs/shared-club"}
+    {:ok, first} = Communities.save(first_scope, attrs)
+    {:ok, second} = Communities.save(second_scope, attrs)
+    {:ok, calls} = Agent.start_link(fn -> [] end)
+
+    Req.Test.stub(__MODULE__, fn conn ->
+      {:ok, body, conn} = Plug.Conn.read_body(conn)
+      request = Jason.decode!(body)
+      Agent.update(calls, &[request["operationName"] | &1])
+
+      if request["operationName"] == "ActiveEvents_Query" do
+        Req.Test.json(conn, %{
+          data: %{
+            club: %{
+              id: "shared-club",
+              name: "Shared Raiders",
+              activeFeed: %{
+                edges: [%{node: %{id: "shared-event"}}],
+                pageInfo: %{hasNextPage: false, endCursor: nil}
+              }
+            }
+          }
+        })
+      else
+        Req.Test.json(conn, %{
+          data: %{
+            event: %{
+              id: "shared-event",
+              name: "Saturday Meetup",
+              eventTime: "2026-10-10T05:30:00Z",
+              eventEndTime: "2026-10-10T09:30:00Z",
+              location: "[100.38,5.42]",
+              club: %{id: "shared-club", name: "Shared Raiders"}
+            }
+          }
+        })
+      end
+    end)
+
+    assert :ok = perform_job(CommunitySyncJob, %{community_id: first.id})
+    assert :ok = perform_job(CommunitySyncJob, %{community_id: second.id})
+    assert Agent.get(calls, &length/1) == 1
+    source = Repo.get_by!(MapSource, map_id: first.map_id)
+    assert {:ok, _} = CATools.Campfire.Importer.import_source(source.id)
+    assert Agent.get(calls, &length/1) == 2
+    assert Repo.get_by!(CATools.Maps.MapPoint, map_id: second.map_id).title == "Saturday Meetup"
+
+    assert :ok =
+             perform_job(
+               CATools.Campfire.ImportJob,
+               %{source_id: Repo.get_by!(MapSource, map_id: second.map_id).id}
+             )
+
+    assert Agent.get(calls, &length/1) == 2
+
+    assert {:ok, _} = Maps.update_map(first_scope, first.map_id, %{visibility: "public"})
+    assert {:ok, third} = Communities.save(third_scope, attrs)
+    assert third.name == "Shared Raiders"
+    assert Maps.get_map(third_scope, third.map_id).visibility == :private
+    assert Repo.get_by!(CATools.Maps.MapPoint, map_id: third.map_id).title == "Saturday Meetup"
+    refute_enqueued(worker: CommunitySyncJob, args: %{community_id: third.id})
+    assert Agent.get(calls, &length/1) == 2
+
+    assert {:ok, _} = Communities.delete(first_scope, first.id)
+    assert {:ok, _} = Communities.delete(second_scope, second.id)
+    assert Repo.get_by!(CATools.Maps.MapPoint, map_id: third.map_id).campfire_id == "shared-event"
+    assert Maps.get_map(third_scope, third.map_id).points_count == 1
+  end
+
   test "group and invitation links resolve the club ID without fetching a meetup" do
     for kind <- ["club", "clubs", "group", "groups"] do
       assert {:ok, "club-123"} =
@@ -254,7 +343,13 @@ defmodule CATools.CommunitiesTest do
         })
       end)
 
-      if index > 0, do: assert(:ok == Communities.check_now(scope, community.id))
+      if index > 0 do
+        Repo.update_all(CATools.Campfire.ResponseCache,
+          set: [fetched_at: DateTime.add(DateTime.utc_now(:second), -86_401)]
+        )
+
+        assert :ok == Communities.check_now(scope, community.id)
+      end
 
       assert :ok = perform_job(CommunitySyncJob, %{community_id: community.id})
       assert Communities.get(scope, community.id).avatar_url == url

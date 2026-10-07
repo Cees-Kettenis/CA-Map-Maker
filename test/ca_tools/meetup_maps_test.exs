@@ -115,6 +115,58 @@ defmodule CATools.MeetupMapsTest do
     assert empty.points_count == 0
   end
 
+  test "finding meetups reuses selected groups' cached events but excludes other accounts' private maps" do
+    scope = user_scope_fixture()
+    stranger = user_scope_fixture()
+
+    {:ok, [community]} =
+      Communities.add_links(scope, "https://campfire.nianticlabs.com/discover/clubs/selected")
+
+    community = Repo.update!(Ecto.Changeset.change(community, club_id: "selected-club"))
+
+    {:ok, map} =
+      MeetupMaps.create(scope, %{
+        name: "Saturday",
+        meetup_date: "2099-10-03",
+        utc_offset_minutes: 480,
+        community_ids: [community.id]
+      })
+
+    pasted = CATools.MapsFixtures.map_fixture(scope)
+    foreign = CATools.MapsFixtures.map_fixture(stranger)
+
+    local = add_point(%{map_id: pasted.id}, "late-local", ~U[2099-10-02 16:00:00Z])
+    Repo.update!(Ecto.Changeset.change(local, club_id: community.club_id))
+    outside = add_point(%{map_id: pasted.id}, "next-day", ~U[2099-10-03 16:00:00Z])
+    Repo.update!(Ecto.Changeset.change(outside, club_id: community.club_id))
+    other = add_point(%{map_id: pasted.id}, "other-club", ~U[2099-10-03 12:00:00Z])
+    Repo.update!(Ecto.Changeset.change(other, club_id: "other-club"))
+    private = add_point(%{map_id: foreign.id}, "foreign-event", ~U[2099-10-03 12:00:00Z])
+    Repo.update!(Ecto.Changeset.change(private, club_id: community.club_id))
+
+    {:ok, [cached_group]} =
+      Communities.add_links(stranger, "https://campfire.nianticlabs.com/discover/clubs/selected")
+
+    cached_group = Repo.update!(Ecto.Changeset.change(cached_group, club_id: community.club_id))
+    cached = add_point(cached_group, "shared-cache", ~U[2099-10-03 05:30:00Z])
+    Repo.update!(Ecto.Changeset.change(cached, club_id: community.club_id))
+    jobs = Repo.all(Oban.Job)
+
+    assert {:ok, found} = MeetupMaps.update_communities(scope, map.id, [community.id])
+    assert Enum.sort(Enum.map(found.points, & &1.id)) == [local.id, cached.id]
+    assert Repo.get!(MapPoint, local.id).map_id == pasted.id
+    assert Repo.all(Oban.Job) == jobs
+    assert {:ok, public} = Maps.update_map(scope, map.id, %{visibility: :public})
+
+    assert Enum.sort(Enum.map(Maps.get_public_map(public.public_slug).points, & &1.id)) ==
+             [local.id, cached.id]
+
+    cached_source = Repo.get!(MapSource, cached.map_source_id)
+    assert :ok = Maps.request_update(scope, map.id)
+    assert Repo.get!(MapSource, cached.map_source_id) == cached_source
+    refute Enum.any?(Repo.all(Oban.Job), &(&1.args["source_id"] == cached.map_source_id))
+  end
+
   test "changing communities validates ownership and preserves the map and shared records" do
     owner = user_scope_fixture()
     stranger = user_scope_fixture()

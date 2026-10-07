@@ -1,6 +1,6 @@
 defmodule CATools.Campfire.GraphQLClient do
   @moduledoc """
-  Fetches Campfire resource data through the authenticated user's Campfire token.
+  Fetches and shares Campfire data through the administrator's configured token.
   """
 
   alias CATools.Accounts
@@ -98,53 +98,57 @@ defmodule CATools.Campfire.GraphQLClient do
              },
              opts
            ) do
-      case response.body do
-        %{"errors" => [_ | _]} ->
-          normalize_response_body(response.body, %{campfire_id: club_id}, token)
-
-        %{
-          "data" => %{
-            "club" =>
-              %{
-                "id" => ^club_id,
-                "name" => name,
-                "activeFeed" => %{
-                  "edges" => edges,
-                  "pageInfo" => %{"hasNextPage" => more, "endCursor" => next}
-                }
-              } = club
-          }
-        }
-        when is_binary(name) and is_list(edges) and is_boolean(more) ->
-          ids =
-            Enum.flat_map(edges, fn
-              %{"node" => %{"id" => id}} when is_binary(id) and id != "" -> [id]
-              _ -> []
-            end)
-
-          if more and (not is_binary(next) or next == "" or next == cursor) do
-            {:error,
-             %{code: "invalid_response", message: "Campfire returned an invalid page cursor."}}
-          else
-            {:ok,
-             %{
-               name: name,
-               avatar_url: CATools.Maps.ImageURL.normalize(club["avatarUrl"]),
-               event_ids: Enum.uniq(ids),
-               next_cursor: if(more, do: next)
-             }}
-          end
-
-        _ ->
-          {:error,
-           %{
-             code: "missing_group",
-             message: "Campfire did not return this group. Check access and the group link."
-           }}
-      end
+      normalize_club_page(response.body, club_id, cursor, token)
     else
       {:error, %{} = details} -> {:error, details}
       {:error, reason} when is_atom(reason) -> {:error, credentials_error(reason)}
+    end
+  end
+
+  defp normalize_club_page(body, club_id, cursor, token) do
+    case body do
+      %{"errors" => [_ | _]} ->
+        normalize_response_body(body, %{campfire_id: club_id}, token)
+
+      %{
+        "data" => %{
+          "club" =>
+            %{
+              "id" => ^club_id,
+              "name" => name,
+              "activeFeed" => %{
+                "edges" => edges,
+                "pageInfo" => %{"hasNextPage" => more, "endCursor" => next}
+              }
+            } = club
+        }
+      }
+      when is_binary(name) and is_list(edges) and is_boolean(more) ->
+        ids =
+          Enum.flat_map(edges, fn
+            %{"node" => %{"id" => id}} when is_binary(id) and id != "" -> [id]
+            _ -> []
+          end)
+
+        if more and (not is_binary(next) or next == "" or next == cursor) do
+          {:error,
+           %{code: "invalid_response", message: "Campfire returned an invalid page cursor."}}
+        else
+          {:ok,
+           %{
+             name: name,
+             avatar_url: CATools.Maps.ImageURL.normalize(club["avatarUrl"]),
+             event_ids: Enum.uniq(ids),
+             next_cursor: if(more, do: next)
+           }}
+        end
+
+      _ ->
+        {:error,
+         %{
+           code: "missing_group",
+           message: "Campfire did not return this group. Check access and the group link."
+         }}
     end
   end
 
@@ -174,6 +178,48 @@ defmodule CATools.Campfire.GraphQLClient do
   end
 
   defp request_graphql(token, body, opts) do
+    key =
+      %{endpoint: endpoint(opts), token: token, request: body}
+      |> Jason.encode!()
+      |> then(&:crypto.hash(:sha256, &1))
+      |> Base.encode16(case: :lower)
+
+    max_age = if Keyword.get(opts, :force, false), do: 60, else: 86_400
+
+    valid? = fn response_body ->
+      result =
+        case body do
+          %{"variables" => %{"id" => id}} ->
+            normalize_response_body(
+              response_body,
+              %{campfire_id: id, resource_type: :meetup},
+              token
+            )
+
+          %{variables: %{clubId: id, after: cursor}} ->
+            normalize_club_page(response_body, id, cursor, token)
+        end
+
+      match?({:ok, _}, result)
+    end
+
+    case CATools.Campfire.ResponseCache.fetch(
+           key,
+           max_age,
+           fn ->
+             case request_uncached(token, body, opts) do
+               {:ok, response} -> {:ok, response.body}
+               error -> error
+             end
+           end,
+           valid?
+         ) do
+      {:ok, response_body} -> {:ok, %Req.Response{status: 200, body: response_body}}
+      error -> error
+    end
+  end
+
+  defp request_uncached(token, body, opts) do
     request =
       [
         method: :post,

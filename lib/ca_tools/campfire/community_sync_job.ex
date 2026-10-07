@@ -20,7 +20,26 @@ defmodule CATools.Campfire.CommunitySyncJob do
   @impl Oban.Worker
   @doc "Checks a due community and imports previously unseen meetup links."
   @spec perform(Oban.Job.t()) :: :ok
-  def perform(%Oban.Job{args: %{"community_id" => id} = args} = job) do
+  def perform(%Oban.Job{args: %{"community_id" => id}} = job) do
+    case Repo.get(Community, id) do
+      nil ->
+        :ok
+
+      community ->
+        club_id =
+          community.club_id ||
+            case ClubResolver.club_id(community.source_url) do
+              {:ok, club_id} -> club_id
+              _ -> community.source_url
+            end
+
+        CATools.Campfire.ResponseCache.with_lock("community:" <> club_id, fn ->
+          sync_community(job)
+        end)
+    end
+  end
+
+  defp sync_community(%Oban.Job{args: %{"community_id" => id} = args} = job) do
     snapshot =
       Repo.transact(fn ->
         community = Repo.get(Community, id)
@@ -52,7 +71,9 @@ defmodule CATools.Campfire.CommunitySyncJob do
                      else: ClubResolver.resolve(community.source_url)
                    ),
                  {:ok, page} <-
-                   GraphQLClient.fetch_club_page(community.user, club_id, community.cursor) do
+                   GraphQLClient.fetch_club_page(community.user, club_id, community.cursor,
+                     force: Map.get(args, "force", false)
+                   ) do
               {:ok, club_id, page}
             end
 
@@ -154,7 +175,12 @@ defmodule CATools.Campfire.CommunitySyncJob do
                           Repo.all(from s in MapSource, where: s.import_batch_id == ^batch.id)
 
                         Enum.each(pending, fn s ->
-                          Oban.insert!(CATools.Campfire.ImportJob.new(%{"source_id" => s.id}))
+                          Oban.insert!(
+                            CATools.Campfire.ImportJob.new(%{
+                              "source_id" => s.id,
+                              "force" => Map.get(args, "force", false)
+                            })
+                          )
                         end)
                       else
                         Oban.insert!(BatchScheduler.new(%{"user_id" => current.user_id}))
@@ -163,8 +189,12 @@ defmodule CATools.Campfire.CommunitySyncJob do
                       Repo.update!(Changeset.change(map, name: page.name))
                     end
 
-                    Repo.update!(
-                      Changeset.change(current,
+                    shared =
+                      from c in Community,
+                        where: c.club_id == ^club_id or c.source_url == ^current.source_url
+
+                    Repo.update_all(shared,
+                      set: [
                         club_id: club_id,
                         name: page.name,
                         avatar_url: page.avatar_url,
@@ -173,7 +203,13 @@ defmodule CATools.Campfire.CommunitySyncJob do
                           if(page.next_cursor, do: now, else: DateTime.add(now, 86_400, :second)),
                         last_checked_at: now,
                         error_message: nil
-                      )
+                      ]
+                    )
+
+                    shared_map_ids = from c in shared, select: c.map_id
+
+                    Repo.update_all(from(m in UserMap, where: m.id in subquery(shared_map_ids)),
+                      set: [name: page.name]
                     )
 
                     CATools.Maps.ImageCache.enqueue([page.avatar_url])
@@ -194,7 +230,7 @@ defmodule CATools.Campfire.CommunitySyncJob do
     case Repo.get(Community, id) do
       %Community{cursor: cursor, enabled: true, next_check_at: next} = c
       when not is_nil(cursor) ->
-        CATools.Maps.notify(c.user_id)
+        CATools.Communities.notify_group(c)
 
         seen_ids =
           case page_result do
@@ -226,7 +262,7 @@ defmodule CATools.Campfire.CommunitySyncJob do
         end
 
       %Community{} = c ->
-        CATools.Maps.notify(c.user_id)
+        CATools.Communities.notify_group(c)
 
       _ ->
         :ok

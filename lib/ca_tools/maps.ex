@@ -344,18 +344,21 @@ defmodule CATools.Maps do
         {:error, :not_found}
 
       %UserMap{meetup_date: %Date{}} = map ->
-        sources_by_map = Enum.group_by(map.sources, & &1.map_id, & &1.id)
+        owned_map_ids =
+          Repo.all(from m in UserMap, where: m.user_id == ^scope.user.id, select: m.id)
+
+        sources_by_map =
+          map.sources
+          |> Enum.filter(&(&1.map_id in owned_map_ids))
+          |> Enum.group_by(& &1.map_id, & &1.id)
 
         Enum.each(sources_by_map, fn {source_map, ids} ->
           queue_sources_now(scope, source_map, ids)
         end)
 
-        if map.sources == [] do
-          Enum.each(
-            CATools.MeetupMaps.communities(scope, id),
-            &CATools.Communities.check_now(scope, &1.id)
-          )
-        end
+        CATools.MeetupMaps.communities(scope, id)
+        |> Enum.reject(&Map.has_key?(sources_by_map, &1.map_id))
+        |> Enum.each(&CATools.Communities.check_now(scope, &1.id))
 
         notify(scope.user.id)
 
@@ -428,7 +431,12 @@ defmodule CATools.Maps do
               fragment("(?->>'source_id')::bigint", j.args) in ^pending_ids
       )
 
-      Enum.each(pending, fn s -> Oban.insert!(ImportJob.new(%{"source_id" => s.id})) end)
+      Enum.each(pending, fn s ->
+        Oban.insert!(
+          ImportJob.new(%{"source_id" => s.id, "force" => true}, replace: [:args, :scheduled_at])
+        )
+      end)
+
       {:ok, :queued}
     end)
   end
