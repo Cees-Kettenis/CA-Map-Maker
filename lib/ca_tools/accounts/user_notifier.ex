@@ -93,6 +93,23 @@ defmodule CATools.Accounts.UserNotifier do
     )
   end
 
+  @doc "Reminds an administrator to sign in to Campfire and replace the shared token, without including credentials."
+  @spec deliver_campfire_token_expiry(User.t(), DateTime.t(), String.t()) ::
+          {:ok, Swoosh.Email.t()} | {:error, term()}
+  def deliver_campfire_token_expiry(user, expires_at, settings_url) do
+    deliver(user.email, "Your shared Campfire token is expiring", """
+    The shared Campfire token expires at #{Calendar.strftime(expires_at, "%Y-%m-%d %H:%M:%S UTC")}.
+
+    Sign in to Campfire at https://campfire.scopely.com, then save the new token in Pogo Meetups Settings:
+
+    #{settings_url}
+
+    The token is stored in your browser's local storage under CapacitorStorage.sessionToken.
+    Logging in to Campfire alone does not update the token saved in Pogo Meetups.
+    Imports and community updates may fail after expiry until a new token is saved.
+    """)
+  end
+
   defp deliver_magic_link_instructions(user, url) do
     deliver(user.email, "Log in instructions", """
 

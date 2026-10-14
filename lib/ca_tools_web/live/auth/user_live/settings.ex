@@ -5,6 +5,7 @@ defmodule CAToolsWeb.Auth.UserLive.Settings do
 
   alias CATools.Accounts
   alias CAToolsWeb.RequestSecurity
+  import CAToolsWeb.MapComponents, only: [local_time: 1]
 
   @impl true
   @doc false
@@ -94,6 +95,25 @@ defmodule CAToolsWeb.Auth.UserLive.Settings do
             <% end %>
           </p>
 
+          <div :if={@campfire_token_saved?} id="campfire-token-expiry" class="text-sm space-y-1">
+            <%= if @campfire_token_expires_at do %>
+              <p>
+                Token expires:
+                <.local_time id="campfire-token-expires-at" datetime={@campfire_token_expires_at} />
+              </p>
+              <%= if @campfire_token_reminded_at do %>
+                <p>An expiry reminder has been emailed to the administrator.</p>
+              <% else %>
+                <p>
+                  The administrator will receive an email reminder 12 hours before expiry.
+                  If less than 12 hours remain, the reminder is queued immediately.
+                </p>
+              <% end %>
+            <% else %>
+              <p>Expiry is unknown. Save the token with an expiry date to enable email reminders.</p>
+            <% end %>
+          </div>
+
           <.form
             for={@campfire_credentials_form}
             id="campfire_credentials_form"
@@ -107,6 +127,15 @@ defmodule CAToolsWeb.Auth.UserLive.Settings do
               autocomplete="off"
               spellcheck="false"
             />
+            <.input
+              field={@campfire_credentials_form[:campfire_token_expires_at]}
+              type="datetime-local"
+              label="Expiry date and time (UTC)"
+            />
+            <p class="text-sm opacity-70">
+              Expiry is read automatically when included in the token. Otherwise, enter it above.
+              The token's own expiry takes precedence.
+            </p>
             <div class="flex flex-col gap-2 sm:flex-row">
               <.button variant="secondary" name="intent" value="validate">
                 <.icon name="hero-check-badge" class="size-4 shrink-0" /> Check token format
@@ -189,6 +218,8 @@ defmodule CAToolsWeb.Auth.UserLive.Settings do
           |> assign(:email_form, to_form(email_changeset))
           |> assign(:password_form, to_form(password_changeset))
           |> assign(:campfire_token_saved?, Accounts.user_has_campfire_token?(user))
+          |> assign(:campfire_token_expires_at, user.campfire_token_expires_at)
+          |> assign(:campfire_token_reminded_at, user.campfire_token_reminded_at)
           |> assign(
             :campfire_credentials_form,
             to_form(Accounts.change_user_campfire_token(), as: "campfire_credentials")
@@ -324,11 +355,13 @@ defmodule CAToolsWeb.Auth.UserLive.Settings do
                ]) do
             :ok ->
               case Accounts.update_user_campfire_token(user, credential_params) do
-                {:ok, _updated_user} ->
+                {:ok, updated_user} ->
                   {:noreply,
                    socket
                    |> put_flash(:info, "Campfire token saved.")
                    |> assign(:campfire_token_saved?, true)
+                   |> assign(:campfire_token_expires_at, updated_user.campfire_token_expires_at)
+                   |> assign(:campfire_token_reminded_at, updated_user.campfire_token_reminded_at)
                    |> assign(
                      :campfire_credentials_form,
                      to_form(Accounts.change_user_campfire_token(), as: "campfire_credentials")
@@ -365,6 +398,8 @@ defmodule CAToolsWeb.Auth.UserLive.Settings do
                socket
                |> put_flash(:info, "Campfire token deleted.")
                |> assign(:campfire_token_saved?, false)
+               |> assign(:campfire_token_expires_at, nil)
+               |> assign(:campfire_token_reminded_at, nil)
                |> assign(
                  :campfire_credentials_form,
                  to_form(Accounts.change_user_campfire_token(), as: "campfire_credentials")

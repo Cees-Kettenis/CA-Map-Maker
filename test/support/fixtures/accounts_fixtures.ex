@@ -49,6 +49,17 @@ defmodule CATools.AccountsFixtures do
     |> CATools.Repo.update!()
   end
 
+  @doc "Builds a synthetic Campfire JWT with an expiry, without contacting Campfire."
+  @spec campfire_token_fixture(DateTime.t()) :: String.t()
+  def campfire_token_fixture(expires_at) do
+    header = Base.url_encode64(Jason.encode!(%{alg: "HS256", typ: "JWT"}), padding: false)
+
+    payload =
+      Base.url_encode64(Jason.encode!(%{exp: DateTime.to_unix(expires_at)}), padding: false)
+
+    header <> "." <> payload <> ".test-signature"
+  end
+
   def user_scope_fixture do
     user = user_fixture()
     user_scope_fixture(user)

@@ -255,6 +255,65 @@ defmodule CAToolsWeb.Auth.UserLive.SettingsTest do
       assert html =~ "No Campfire token saved."
     end
 
+    test "reads JWT expiry, displays it after save and reload, and removes it on deletion", %{
+      conn: conn
+    } do
+      expiry = DateTime.add(DateTime.utc_now(:second), 7, :day)
+      token = campfire_token_fixture(expiry)
+      {:ok, lv, _html} = live(conn, ~p"/auth/users/settings")
+
+      html =
+        lv
+        |> form("#campfire_credentials_form",
+          campfire_credentials: %{campfire_token_input: token}
+        )
+        |> render_submit(%{"intent" => "save"})
+
+      assert html =~ "12 hours before expiry"
+
+      assert has_element?(
+               lv,
+               "time#campfire-token-expires-at[datetime='#{DateTime.to_iso8601(expiry)}']"
+             )
+
+      refute html =~ token
+
+      {:ok, reloaded, _html} = live(conn, ~p"/auth/users/settings")
+      assert has_element?(reloaded, "#campfire-token-expires-at")
+      render_click(element(reloaded, "button", "Delete Saved Token"))
+      refute has_element?(reloaded, "#campfire-token-expiry")
+    end
+
+    test "saves a manually entered expiry and reports invalid dates", %{conn: conn, user: user} do
+      expiry = DateTime.utc_now(:second) |> DateTime.add(7, :day) |> Map.put(:second, 0)
+      {:ok, lv, _html} = live(conn, ~p"/auth/users/settings")
+
+      lv
+      |> form("#campfire_credentials_form",
+        campfire_credentials: %{
+          campfire_token_input: "opaque-token",
+          campfire_token_expires_at: Calendar.strftime(expiry, "%Y-%m-%dT%H:%M")
+        }
+      )
+      |> render_submit(%{"intent" => "save"})
+
+      assert Accounts.get_user!(user.id).campfire_token_expires_at == expiry
+      assert has_element?(lv, "#campfire-token-expires-at")
+
+      html =
+        lv
+        |> form("#campfire_credentials_form",
+          campfire_credentials: %{
+            campfire_token_input: "opaque-token",
+            campfire_token_expires_at: "2000-01-01T00:00"
+          }
+        )
+        |> render_submit(%{"intent" => "save"})
+
+      assert html =~ "must be in the future"
+      assert Accounts.get_user!(user.id).campfire_token_expires_at == expiry
+    end
+
     test "rate limits credential validation", %{conn: conn} do
       {:ok, lv, _html} = live(conn, ~p"/auth/users/settings")
 

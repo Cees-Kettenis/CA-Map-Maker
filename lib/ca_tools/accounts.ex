@@ -7,6 +7,7 @@ defmodule CATools.Accounts do
   alias CATools.Repo
 
   alias CATools.Accounts.{CampfireCredentials, User, UserNotifier, UserToken}
+  alias CATools.Campfire.TokenExpiryReminderJob
   alias Ecto.Changeset
 
   @type session_lookup_result :: {User.t(), DateTime.t()} | nil
@@ -110,19 +111,41 @@ defmodule CATools.Accounts do
   """
   @spec change_user_campfire_token(map()) :: Changeset.t()
   def change_user_campfire_token(attrs \\ %{}) do
-    {%{}, %{campfire_token_input: :string}}
-    |> Changeset.cast(attrs, [:campfire_token_input])
-    |> Changeset.validate_required([:campfire_token_input])
-    |> Changeset.validate_change(:campfire_token_input, fn :campfire_token_input, value ->
-      case CampfireCredentials.normalize(value) do
-        {:ok, _normalized_credentials} -> []
-        {:error, message} -> [campfire_token_input: message]
+    changeset =
+      {%{}, %{campfire_token_input: :string, campfire_token_expires_at: :utc_datetime}}
+      |> Changeset.cast(attrs, [:campfire_token_input, :campfire_token_expires_at])
+      |> Changeset.validate_required([:campfire_token_input])
+      |> Changeset.validate_change(:campfire_token_input, fn :campfire_token_input, value ->
+        case CampfireCredentials.normalize(value) do
+          {:ok, _normalized_credentials} -> []
+          {:error, message} -> [campfire_token_input: message]
+        end
+      end)
+
+    changeset =
+      case CampfireCredentials.normalize(Changeset.get_field(changeset, :campfire_token_input)) do
+        {:ok, credentials} ->
+          case CampfireCredentials.token_expiry(credentials) do
+            %DateTime{} = expiry ->
+              Changeset.put_change(changeset, :campfire_token_expires_at, expiry)
+
+            nil ->
+              changeset
+          end
+
+        {:error, _} ->
+          changeset
       end
+
+    Changeset.validate_change(changeset, :campfire_token_expires_at, fn field, expiry ->
+      if DateTime.compare(expiry, DateTime.utc_now()) == :gt,
+        do: [],
+        else: [{field, "must be in the future"}]
     end)
   end
 
   @doc """
-  Stores an encrypted Campfire token for the given user.
+  Stores an encrypted Campfire token and schedules an expiry reminder for the administrator.
   """
   @spec update_user_campfire_token(User.t(), map()) :: {:ok, User.t()} | {:error, Changeset.t()}
   def update_user_campfire_token(user, attrs) do
@@ -146,9 +169,38 @@ defmodule CATools.Accounts do
         encrypted_credentials =
           CampfireCredentials.encrypt_user_credentials(user_id, normalized_credentials)
 
-        user
-        |> Changeset.change(encrypted_credentials: encrypted_credentials)
-        |> Repo.update()
+        Repo.transact(fn ->
+          current_user = Repo.one!(from u in User, where: u.id == ^user_id, lock: "FOR UPDATE")
+
+          with {:ok, updated_user} <-
+                 current_user
+                 |> Changeset.change(
+                   encrypted_credentials: encrypted_credentials,
+                   campfire_token_expires_at:
+                     Changeset.get_field(changeset, :campfire_token_expires_at),
+                   campfire_token_reminded_at: nil
+                 )
+                 |> Repo.update() do
+            TokenExpiryReminderJob.cancel(user_id)
+
+            if updated_user.campfire_token_expires_at do
+              reminder_at = DateTime.add(updated_user.campfire_token_expires_at, -12, :hour)
+              now = DateTime.utc_now(:second)
+
+              scheduled_at =
+                if DateTime.compare(reminder_at, now) == :gt, do: reminder_at, else: now
+
+              %{
+                "user_id" => user_id,
+                "credential_version" => encrypted_credentials["iv"]
+              }
+              |> TokenExpiryReminderJob.new(scheduled_at: scheduled_at)
+              |> Oban.insert!()
+            end
+
+            {:ok, updated_user}
+          end
+        end)
 
       _ ->
         {:error, changeset}
@@ -161,7 +213,21 @@ defmodule CATools.Accounts do
   @spec delete_user_campfire_token(User.t()) :: {:ok, User.t()} | {:error, Changeset.t()}
   def delete_user_campfire_token(user) do
     if admin?(user) do
-      user |> Changeset.change(encrypted_credentials: nil) |> Repo.update()
+      Repo.transact(fn ->
+        current_user = Repo.one!(from u in User, where: u.id == ^user.id, lock: "FOR UPDATE")
+
+        with {:ok, updated_user} <-
+               current_user
+               |> Changeset.change(
+                 encrypted_credentials: nil,
+                 campfire_token_expires_at: nil,
+                 campfire_token_reminded_at: nil
+               )
+               |> Repo.update() do
+          TokenExpiryReminderJob.cancel(user.id)
+          {:ok, updated_user}
+        end
+      end)
     else
       {:error,
        Changeset.add_error(

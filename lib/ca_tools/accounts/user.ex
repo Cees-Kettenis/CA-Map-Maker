@@ -11,6 +11,8 @@ defmodule CATools.Accounts.User do
           password: String.t() | nil,
           hashed_password: String.t() | nil,
           encrypted_credentials: map() | nil,
+          campfire_token_expires_at: DateTime.t() | nil,
+          campfire_token_reminded_at: DateTime.t() | nil,
           confirmed_at: DateTime.t() | nil,
           authenticated_at: DateTime.t() | nil,
           maps: [UserMap.t()] | Ecto.Association.NotLoaded.t()
@@ -22,6 +24,8 @@ defmodule CATools.Accounts.User do
     field :password, :string, virtual: true, redact: true
     field :hashed_password, :string, redact: true
     field :encrypted_credentials, :map, redact: true
+    field :campfire_token_expires_at, :utc_datetime
+    field :campfire_token_reminded_at, :utc_datetime
     field :confirmed_at, :utc_datetime
     field :authenticated_at, :utc_datetime, virtual: true
     has_many :maps, UserMap

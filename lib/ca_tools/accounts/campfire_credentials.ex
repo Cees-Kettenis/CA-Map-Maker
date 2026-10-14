@@ -37,6 +37,21 @@ defmodule CATools.Accounts.CampfireCredentials do
     end
   end
 
+  @doc "Reads the JWT expiry for reminder scheduling only, without verifying the token. Returns nil when no valid expiry is present."
+  @spec token_expiry(normalized_credentials()) :: DateTime.t() | nil
+  def token_expiry(credentials) do
+    token = get_in(credentials, ["campfire", "token"])
+
+    with [_, payload, _] <- String.split(token, "."),
+         {:ok, json} <- Base.url_decode64(payload, padding: false),
+         {:ok, %{"exp" => expiry}} when is_integer(expiry) <- Jason.decode(json),
+         {:ok, datetime} <- DateTime.from_unix(expiry) do
+      datetime
+    else
+      _ -> nil
+    end
+  end
+
   @doc """
   Encrypts normalized credentials for the given user.
   """
