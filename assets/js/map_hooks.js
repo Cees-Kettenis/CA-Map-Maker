@@ -163,21 +163,15 @@ export const AtlasMap = {
       }
     })
     if (points.length && pointsChanged) {
-      this.map.once('moveend', () => {
-        this.markerBaseZoom = this.map.getZoom()
-        this.updateMarkerSizes()
-      })
       this.map.fitBounds(this.markers.getBounds(), {padding: [45, 45], maxZoom: 14})
-    } else {
-      this.updateMarkerSizes()
     }
+    this.updateMarkerSizes()
   },
   updateMarkerSizes() {
     const zoom = this.map.getZoom()
-    const enlarged = zoom >= this.markerBaseZoom + 2
     this.imageMarkers.forEach(({marker, pin, image}) => {
-      const thumbnail = enlarged && !image.hidden
-      const size = thumbnail ? (zoom >= this.markerBaseZoom + 4 ? 184 : 136) : 36
+      const thumbnail = zoom >= 12 && !image.hidden
+      const size = thumbnail ? (zoom >= 14 ? 184 : 136) : 36
       if (marker.options.icon.options.iconSize[0] === size) return
       pin.className = thumbnail ? 'atlas-pin atlas-pin-thumbnail' : 'atlas-pin'
       pin.style.width = `${size}px`
