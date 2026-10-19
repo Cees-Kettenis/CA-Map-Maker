@@ -264,14 +264,33 @@ defmodule CATools.Campfire.GraphQLClient do
 
   defp normalize_response_body(body, resolved_source, token) do
     case body do
-      %{"errors" => [%{} | _] = errors} ->
+      %{"errors" => [_ | _] = errors} ->
+        if Map.has_key?(resolved_source, :resource_type) and
+             Enum.all?(errors, &match?(%{"message" => "event not found"}, &1)) do
+          {:error,
+           %{
+             code: "resource_removed",
+             message: "This meetup is no longer available on Campfire."
+           }}
+        else
+          {:error,
+           %{
+             code: "graphql_error",
+             message:
+               errors
+               |> Enum.map_join("; ", &graphql_error_message/1)
+               |> String.replace(token, "[REDACTED]")
+           }}
+        end
+
+      %{"errors" => errors} when not is_list(errors) ->
+        {:error, %{code: "invalid_response", message: "Campfire GraphQL response was malformed."}}
+
+      %{"data" => %{"event" => nil}} ->
         {:error,
          %{
-           code: "graphql_error",
-           message:
-             errors
-             |> Enum.map_join("; ", &graphql_error_message/1)
-             |> String.replace(token, "[REDACTED]")
+           code: "resource_removed",
+           message: "This meetup is no longer available on Campfire."
          }}
 
       %{"data" => data} when is_map(data) ->

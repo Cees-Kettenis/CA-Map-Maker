@@ -21,7 +21,8 @@ defmodule CATools.Campfire.Importer do
       nil ->
         {:error, :not_found}
 
-      %MapSource{status: :skipped, error_code: "cancelled"} = source ->
+      %MapSource{status: :skipped, error_code: code} = source
+      when code in ["cancelled", "resource_removed"] ->
         {:ok, source}
 
       %MapSource{} = source ->
@@ -140,6 +141,9 @@ defmodule CATools.Campfire.Importer do
 
       {:error, :cancelled} ->
         {:ok, Repo.get!(MapSource, source.id)}
+
+      {:error, %{code: "resource_removed"} = error_details} ->
+        remove_resource(source, error_details)
 
       {:error, %{} = error_details} ->
         fail_source(source, error_details)
@@ -285,6 +289,84 @@ defmodule CATools.Campfire.Importer do
 
       nil ->
         {:error, :map_not_found}
+    end
+  end
+
+  defp remove_resource(source, error_details) do
+    result =
+      Repo.transact(fn ->
+        matching_sources =
+          from s in MapSource,
+            join: m in assoc(s, :map),
+            where:
+              s.id == ^source.id or
+                s.campfire_id == ^(source.campfire_id || ""),
+            select: {s, m.user_id}
+
+        copies = Repo.all(matching_sources)
+
+        copies
+        |> Enum.map(&elem(&1, 1))
+        |> Enum.uniq()
+        |> Enum.sort()
+        |> Enum.each(&Repo.query!("SELECT pg_advisory_xact_lock(73191, $1)", [&1]))
+
+        locked_ids = Enum.map(copies, fn {s, _} -> s.id end)
+        current = Repo.get(MapSource, source.id)
+
+        batch =
+          if source.import_batch_id,
+            do: Repo.get(CATools.Maps.ImportBatch, source.import_batch_id)
+
+        cond do
+          is_nil(current) ->
+            {:error, :not_found}
+
+          (batch && batch.status == :cancelled) or
+              current.import_batch_id != source.import_batch_id ->
+            {:ok, {current, []}}
+
+          true ->
+            copies = Repo.all(from [s, _m] in matching_sources, where: s.id in ^locked_ids)
+            ids = Enum.map(copies, fn {s, _} -> s.id end)
+
+            Repo.delete_all(from p in MapPoint, where: p.map_source_id in ^ids)
+
+            Repo.update_all(from(s in MapSource, where: s.id in ^ids),
+              set: [
+                status: :skipped,
+                error_code: error_details.code,
+                error_message: error_details.message,
+                next_fetch_at: nil,
+                updated_at: DateTime.utc_now(:second)
+              ]
+            )
+
+            copies
+            |> Enum.map(fn {s, _} -> s.map_id end)
+            |> Enum.uniq()
+            |> Enum.each(fn map_id -> {:ok, _} = refresh_map_counters(Repo, map_id) end)
+
+            {:ok, {Repo.get!(MapSource, source.id), copies}}
+        end
+      end)
+
+    case result do
+      {:ok, {updated_source, copies}} ->
+        copies
+        |> Enum.map(fn {s, _} -> s.import_batch_id end)
+        |> Enum.uniq()
+        |> Enum.each(&CATools.Maps.refresh_batch/1)
+
+        copies
+        |> Enum.map(&elem(&1, 1))
+        |> Enum.uniq()
+        |> Enum.each(&CATools.Maps.notify/1)
+
+        {:ok, updated_source}
+
+      error ->
+        error
     end
   end
 

@@ -257,7 +257,8 @@ defmodule CATools.CampfireTest do
       for {status, body, code} <- [
             {401, %{}, "unauthorized"},
             {403, %{}, "forbidden"},
-            {200, %{"data" => %{"event" => nil}}, "missing_resource"},
+            {200, %{"errors" => [%{"message" => "event not found"}]}, "resource_removed"},
+            {200, %{"data" => %{"event" => nil}}, "resource_removed"},
             {200, %{"data" => %{"event" => %{"id" => "other"}}}, "missing_resource"},
             {200, %{"broken" => true}, "invalid_response"}
           ] do

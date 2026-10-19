@@ -6,6 +6,8 @@ Open **Updates** beside **Export KML** to see **Last updated**, **Scheduled upda
 
 Creating a date map from communities refreshes the selected events' details. These maps read the communities' saved event records directly, so details and locally stored images are shared. Events moved to another day leave the date map automatically.
 
+When Campfire returns an empty meetup or an explicit `event not found` error, its saved markers and meetup cards are removed from all local maps, including linked date maps. This happens during the next daily update, or sooner with **Update now**. Group updates also recheck saved, unfinished meetups that have disappeared from the group feed. A missing feed entry alone does not remove a meetup. Timeouts, rejected credentials, and malformed responses keep the saved meetup available.
+
 Large automatic imports still process up to 50 links per account in each 10-minute scheduling window. This is a queue limit, not a recurring fetch interval. Failed event requests can retry up to three times. Finished meetups are excluded from automatic detail updates.
 
 Images are normally downloaded once per distinct URL and saved as WebP at up to 500 × 500 pixels, preserving their proportions. Downloads accept up to 5 MB; stored images must fit within 100 KB. Animated inputs use their first frame. Viewing or refreshing a page uses the local copies. Failed image downloads are not retried automatically.

@@ -100,6 +100,7 @@ defmodule CATools.Campfire.CommunitySyncJob do
 
                     cutoff = DateTime.add(now, -86_400, :second)
 
+                    # Recheck saved events on the first page, including those no longer in the feed.
                     stale_ids =
                       Repo.all(
                         from s in MapSource,
@@ -107,8 +108,9 @@ defmodule CATools.Campfire.CommunitySyncJob do
                           on: p.map_source_id == s.id,
                           where:
                             (is_nil(p.ends_at) or p.ends_at > ^now) and
-                              s.map_id == ^map.id and s.original_url in ^urls and
-                              s.status == :fetched and
+                              s.map_id == ^map.id and
+                              (s.original_url in ^urls or ^is_nil(community.cursor)) and
+                              s.status in [:fetched, :failed, :skipped] and
                               (^Map.get(args, "force", false) or is_nil(s.last_fetched_at) or
                                  s.last_fetched_at <= ^cutoff),
                           select: s.id
