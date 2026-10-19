@@ -56,6 +56,7 @@ export const AtlasMap = {
       attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
     }).addTo(this.map)
     this.markers = window.L.featureGroup().addTo(this.map)
+    this.map.on('zoomend', () => this.updateMarkerSizes())
     this.updatePoints()
     const resizePopup = () => {
       if (!this.openPopup?.isOpen()) return
@@ -82,6 +83,7 @@ export const AtlasMap = {
     this.lastSettings = settings
     const points = JSON.parse(data)
     this.markers.clearLayers()
+    this.imageMarkers = []
     const locations = new Map()
     points.forEach(point => {
       const key = JSON.stringify([point.latitude, point.longitude])
@@ -145,7 +147,7 @@ export const AtlasMap = {
         count.textContent = String(meetups.length)
         pin.appendChild(count)
       }
-      window.L.marker([point.latitude, point.longitude], {
+      const marker = window.L.marker([point.latitude, point.longitude], {
         title: meetups.length > 1 ? `${point.title} · ${meetups.length} meetups` : point.title,
         zIndexOffset: (locations.size - index) * 100,
         icon: window.L.divIcon({className: '', iconSize: [36, 36], iconAnchor: [18, 43],
@@ -155,8 +157,38 @@ export const AtlasMap = {
         minWidth: Math.max(50, Math.min(250, this.map.getSize().x - 70)),
         maxHeight: Math.max(80, Math.min(420, this.map.getSize().y - 80)),
       }).addTo(this.markers)
+      if (image) {
+        this.imageMarkers.push({marker, pin, image})
+        image.addEventListener('error', () => this.updateMarkerSizes())
+      }
     })
-    if (points.length && pointsChanged) this.map.fitBounds(this.markers.getBounds(), {padding: [45, 45], maxZoom: 14})
+    if (points.length && pointsChanged) {
+      this.map.once('moveend', () => {
+        this.markerBaseZoom = this.map.getZoom()
+        this.updateMarkerSizes()
+      })
+      this.map.fitBounds(this.markers.getBounds(), {padding: [45, 45], maxZoom: 14})
+    } else {
+      this.updateMarkerSizes()
+    }
+  },
+  updateMarkerSizes() {
+    const zoom = this.map.getZoom()
+    const enlarged = zoom >= this.markerBaseZoom + 2
+    this.imageMarkers.forEach(({marker, pin, image}) => {
+      const thumbnail = enlarged && !image.hidden
+      const size = thumbnail ? (zoom >= this.markerBaseZoom + 4 ? 184 : 136) : 36
+      if (marker.options.icon.options.iconSize[0] === size) return
+      pin.className = thumbnail ? 'atlas-pin atlas-pin-thumbnail' : 'atlas-pin'
+      pin.style.width = `${size}px`
+      pin.style.height = `${size}px`
+      image.style.width = `${size - 8}px`
+      image.style.height = `${size - 8}px`
+      marker.setIcon(window.L.divIcon({...marker.options.icon.options,
+        iconSize: [size, size], iconAnchor: thumbnail ? [size / 2, size + 8] : [18, 43],
+        popupAnchor: thumbnail ? [0, -size - 12] : [0, -40]}))
+    })
+    if (this.openPopup?.isOpen()) this.openPopup.update()
   },
   destroyed() { this.resizeObserver.disconnect(); this.map.remove() },
 }

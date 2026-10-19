@@ -99,26 +99,52 @@ test('public link buttons copy without a visible URL field, including the clipbo
 
 function renderMarkers(points, mapHeight = 510, mapWidth = 1200, dataset = {}, hook = {}) {
   const markers = []
+  const listeners = {}
+  const once = {}
+  const map = {
+    zoom: 2,
+    setView(_center, zoom) { this.zoom = zoom; return this },
+    on(event, listener) { listeners[event] = listener },
+    once(event, listener) { once[event] = listener },
+    fitBounds() { this.zoom = 14; this.fire('zoomend'); this.fire('moveend') },
+    fire(event) {
+      listeners[event]?.()
+      const listener = once[event]
+      delete once[event]
+      listener?.()
+    },
+    setZoom(zoom) { this.zoom = zoom; this.fire('zoomend'); this.fire('moveend') },
+    getZoom() { return this.zoom },
+    getSize() { return {x: mapWidth, y: mapHeight} },
+  }
+  const group = {addTo() { return this }, clearLayers() {}, getBounds() { return [] }}
   globalThis.document = {
     createElement(tag) {
       return {tag, children: [], listeners: {}, style: {}, appendChild(child) { this.children.push(child) },
-        addEventListener(event, handler) { this.listeners[event] = handler }}
+        addEventListener(event, handler) {
+          const previous = this.listeners[event]
+          this.listeners[event] = (...args) => { previous?.(...args); handler(...args) }
+        }}
     },
   }
+  globalThis.ResizeObserver = class { observe() {} }
   globalThis.window = {L: {
-    divIcon(options) { return options },
+    map() { return map },
+    tileLayer() { return {addTo() {}} },
+    featureGroup() { return group },
+    divIcon(options) { return {...options, options} },
     marker(coordinates, options) {
-      const marker = {coordinates, options, bindPopup(popup, config) { this.popup = popup; this.config = config; return this }, addTo() { return this }}
+      const marker = {coordinates, options, iconChanges: 0,
+        setIcon(icon) { this.options.icon = icon; this.iconChanges++; return this },
+        bindPopup(popup, config) { this.popup = popup; this.config = config; return this }, addTo() { return this }}
       markers.push(marker)
       return marker
     },
   }}
-  Object.assign(hook, {
+  Object.assign(hook, AtlasMap, {
     el: {dataset, querySelector() { return {textContent: JSON.stringify(points)} }},
-    markers: {clearLayers() {}, getBounds() { return [] }},
-    map: {fitBounds() {}, getSize() { return {x: mapWidth, y: mapHeight} }},
   })
-  AtlasMap.updatePoints.call(hook)
+  hook.mounted()
   return markers
 }
 
@@ -184,6 +210,107 @@ test('marker images and colours reject untrusted values', () => {
       assert.equal(marker.options.icon.html.style.backgroundColor, '#2563eb')
     }
   }
+})
+
+test('image markers show full thumbnails after two zoom levels and grow closer in without changing plain pins or popups', () => {
+  const imageUrl = `/media/meetups/${'a'.repeat(64)}`
+  for (const style of ['community', 'meetup', 'plain']) {
+    const hook = {}
+    const [marker, fallback] = renderMarkers([
+      meetup('First', 101.68, {community_logo_url: imageUrl, meetup_photo_url: imageUrl}),
+      meetup('Second', 101.68), meetup('No image', 101.70),
+    ], 510, 1200, {markerStyle: style}, hook)
+    const popup = marker.popup
+    const pin = marker.options.icon.html
+    assert.equal(hook.markerBaseZoom, 14)
+    hook.map.setZoom(15)
+    assert.deepEqual(marker.options.icon.iconSize, [36, 36])
+    let popupUpdates = 0
+    hook.openPopup = {isOpen() { return true }, update() { popupUpdates++ }}
+    hook.map.fitBounds = () => assert.fail('zooming must not reset the viewport')
+    hook.map.setZoom(16)
+    const size = style === 'plain' ? 36 : 136
+    assert.deepEqual(marker.options.icon.iconSize, [size, size])
+    assert.deepEqual(marker.options.icon.iconAnchor, style === 'plain' ? [18, 43] : [68, 144])
+    assert.deepEqual(marker.options.icon.popupAnchor, style === 'plain' ? [0, -40] : [0, -148])
+    assert.equal(marker.popup, popup)
+    assert.equal(pin.children.at(-1).textContent, '2')
+    assert.deepEqual(fallback.options.icon.iconSize, [36, 36])
+    if (style !== 'plain') {
+      assert.equal(pin.className, 'atlas-pin atlas-pin-thumbnail')
+      assert.equal(pin.style.width, '136px')
+      assert.equal(pin.children[0].style.width, '128px')
+    }
+    assert.ok(popupUpdates > 0)
+    hook.map.setZoom(17)
+    assert.deepEqual(marker.options.icon.iconSize, [size, size])
+    hook.map.setZoom(18)
+    const closeSize = style === 'plain' ? 36 : 184
+    assert.deepEqual(marker.options.icon.iconSize, [closeSize, closeSize])
+    assert.deepEqual(marker.options.icon.iconAnchor, style === 'plain' ? [18, 43] : [92, 192])
+    assert.deepEqual(marker.options.icon.popupAnchor, style === 'plain' ? [0, -40] : [0, -196])
+    assert.equal(marker.popup, popup)
+    assert.equal(pin.children.at(-1).textContent, '2')
+    assert.deepEqual(fallback.options.icon.iconSize, [36, 36])
+    if (style !== 'plain') {
+      assert.equal(pin.style.height, '184px')
+      assert.equal(pin.children[0].style.height, '176px')
+    }
+    const changes = marker.iconChanges
+    hook.map.setZoom(19)
+    assert.equal(marker.iconChanges, changes)
+    hook.map.setZoom(16)
+    assert.deepEqual(marker.options.icon.iconSize, [size, size])
+    hook.map.setZoom(15)
+    assert.deepEqual(marker.options.icon.iconSize, [36, 36])
+    assert.equal(pin.className, 'atlas-pin')
+    hook.map.setZoom(12)
+    assert.equal(hook.markerBaseZoom, 14)
+    assert.deepEqual(marker.options.icon.iconSize, [36, 36])
+  }
+})
+
+test('image errors restore plain marker sizing even while zoomed in', () => {
+  const hook = {}
+  const [marker] = renderMarkers([meetup('Image', 101.68, {
+    community_logo_url: `/media/meetups/${'b'.repeat(64)}`,
+  })], 510, 1200, {markerStyle: 'community'}, hook)
+  hook.map.setZoom(17)
+  const image = marker.options.icon.html.children[0]
+  image.listeners.error()
+  assert.equal(image.hidden, true)
+  assert.deepEqual(marker.options.icon.iconSize, [36, 36])
+  assert.equal(marker.options.icon.html.className, 'atlas-pin')
+  assert.deepEqual(marker.options.icon.iconAnchor, [18, 43])
+  hook.map.setZoom(19)
+  assert.deepEqual(marker.options.icon.iconSize, [36, 36])
+})
+
+test('marker settings preserve zoom sizing and changed points establish a new baseline after fitting', () => {
+  const points = [meetup('Image', 101.68, {meetup_photo_url: `/media/meetups/${'c'.repeat(64)}`})]
+  const hook = {}
+  const markers = renderMarkers(points, 510, 1200, {markerStyle: 'plain'}, hook)
+  hook.map.setZoom(16)
+  hook.el.dataset.markerStyle = 'meetup'
+  hook.updated()
+  assert.deepEqual(markers.at(-1).options.icon.iconSize, [136, 136])
+  assert.equal(hook.markerBaseZoom, 14)
+
+  hook.el.querySelector = () => ({textContent: JSON.stringify([...points, meetup('New location', 102)])})
+  hook.map.fitBounds = () => {}
+  hook.updated()
+  hook.map.zoom = 10
+  hook.map.fire('zoomend')
+  hook.map.fire('moveend')
+  assert.equal(hook.markerBaseZoom, 10)
+  const imageMarker = markers.at(-2)
+  assert.deepEqual(imageMarker.options.icon.iconSize, [36, 36])
+  hook.map.setZoom(12)
+  assert.deepEqual(imageMarker.options.icon.iconSize, [136, 136])
+  hook.map.setZoom(14)
+  assert.deepEqual(imageMarker.options.icon.iconSize, [184, 184])
+  hook.map.setZoom(17)
+  assert.deepEqual(imageMarker.options.icon.iconSize, [184, 184])
 })
 
 test('saving marker settings redraws unchanged points without resetting the map viewport', () => {

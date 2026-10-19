@@ -167,6 +167,10 @@ body { display: flex; flex-direction: column; min-height: 100vh; min-height: 100
 .atlas-pin { position: relative; width: 36px; height: 36px; display: grid; place-items: center; border-radius: 50% 50% 50% 0; transform: rotate(-45deg); background: #2563eb; color: white; border: 2px solid white; box-shadow: 0 3px 10px #18181b40; }
 .atlas-pin-image { width: 28px; height: 28px; border-radius: 50%; object-fit: cover; transform: rotate(45deg); background: white; }
 .atlas-pin-image[hidden] { display: none; }
+.atlas-pin-thumbnail { border-radius: 10px; transform: none; }
+.atlas-pin-thumbnail::after { content: ''; position: absolute; width: 12px; height: 12px; left: calc(50% - 6px); bottom: -8px; background: inherit; border-right: 2px solid white; border-bottom: 2px solid white; transform: rotate(45deg); }
+.atlas-pin-thumbnail .atlas-pin-image { border-radius: 6px; object-fit: contain; transform: none; }
+.atlas-pin-thumbnail .atlas-pin-count { transform: none; }
 .atlas-popup { max-width: 250px; overflow-wrap: anywhere; }
 .atlas-popup h3 { font-weight: 700; margin-bottom: 5px; }
 .atlas-map .atlas-popup p { margin: 6px 0; white-space: pre-wrap; }
