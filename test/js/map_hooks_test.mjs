@@ -97,11 +97,11 @@ test('public link buttons copy without a visible URL field, including the clipbo
   }
 })
 
-function renderMarkers(points, mapHeight = 510, mapWidth = 1200) {
+function renderMarkers(points, mapHeight = 510, mapWidth = 1200, dataset = {}, hook = {}) {
   const markers = []
   globalThis.document = {
     createElement(tag) {
-      return {tag, children: [], listeners: {}, appendChild(child) { this.children.push(child) },
+      return {tag, children: [], listeners: {}, style: {}, appendChild(child) { this.children.push(child) },
         addEventListener(event, handler) { this.listeners[event] = handler }}
     },
   }
@@ -113,11 +113,12 @@ function renderMarkers(points, mapHeight = 510, mapWidth = 1200) {
       return marker
     },
   }}
-  AtlasMap.updatePoints.call({
-    el: {querySelector() { return {textContent: JSON.stringify(points)} }},
+  Object.assign(hook, {
+    el: {dataset, querySelector() { return {textContent: JSON.stringify(points)} }},
     markers: {clearLayers() {}, getBounds() { return [] }},
     map: {fitBounds() {}, getSize() { return {x: mapWidth, y: mapHeight} }},
   })
+  AtlasMap.updatePoints.call(hook)
   return markers
 }
 
@@ -141,9 +142,63 @@ test('meetups at the same coordinates share a marker with the next meetup first'
   assert.equal(markers.length, 2)
   assert.deepEqual(markers[0].popup.children.map(section => section.children[0].textContent), ['Soonest', 'Later at the same place'])
   assert.match(markers[0].options.title, /^Soonest/)
-  assert.match(markers[0].options.icon.html, /atlas-pin-count">2/)
+  assert.equal(markers[0].options.icon.html.children[0].className, 'atlas-pin-count')
+  assert.equal(markers[0].options.icon.html.children[0].textContent, '2')
   assert.ok(markers[0].options.zIndexOffset > markers[1].options.zIndexOffset)
   assert.equal(markers[0].config.maxHeight, 420)
+})
+
+test('default markers are plain without sequence numbers and use the chosen colour', () => {
+  const [marker] = renderMarkers([meetup('First', 101.68)])
+  assert.equal(marker.options.icon.html.children.length, 0)
+  assert.equal(marker.options.icon.html.style.backgroundColor, '#2563eb')
+  const [custom] = renderMarkers([meetup('First', 101.68)], 510, 1200, {markerColor: '#be123c'})
+  assert.equal(custom.options.icon.html.style.backgroundColor, '#be123c')
+})
+
+test('image marker styles reuse the correct local image, keep counts and fall back to plain pins', () => {
+  const logo = `/media/meetups/${'e'.repeat(64)}?v=2`
+  const photo = `/media/meetups/${'f'.repeat(64)}?v=1`
+  for (const [style, expected] of [['community', logo], ['meetup', photo]]) {
+    const markers = renderMarkers([
+      meetup('Next', 101.68, {community_logo_url: logo, meetup_photo_url: photo}),
+      meetup('Later', 101.68, {community_logo_url: photo, meetup_photo_url: logo}),
+      meetup('Missing', 101.70),
+    ], 380, 333, {markerStyle: style, markerColor: '#16a34a'})
+    const pin = markers[0].options.icon.html
+    assert.equal(pin.children[0].src, expected)
+    assert.equal(pin.children[0].className, 'atlas-pin-image')
+    assert.equal(pin.children[1].textContent, '2')
+    pin.children[0].listeners.error()
+    assert.equal(pin.children[0].hidden, true)
+    assert.equal(pin.style.backgroundColor, '#16a34a')
+    assert.equal(markers[1].options.icon.html.children.length, 0)
+  }
+})
+
+test('marker images and colours reject untrusted values', () => {
+  for (const value of ['https://cdn.example.com/logo.png', 'javascript:alert(1)', `/media/meetups/${'a'.repeat(64)}?v=2&extra=1`]) {
+    for (const style of ['community', 'meetup']) {
+      const [marker] = renderMarkers([meetup('Unsafe', 101.68, {community_logo_url: value, meetup_photo_url: value})], 510, 1200, {markerStyle: style, markerColor: 'red; color:green'})
+      assert.equal(marker.options.icon.html.children.length, 0)
+      assert.equal(marker.options.icon.html.style.backgroundColor, '#2563eb')
+    }
+  }
+})
+
+test('saving marker settings redraws unchanged points without resetting the map viewport', () => {
+  const points = [meetup('Same meetup', 101.68)]
+  const hook = {}
+  renderMarkers(points, 510, 1200, {}, hook)
+  let boundsChanges = 0
+  hook.map.fitBounds = () => boundsChanges++
+  hook.el.dataset.markerColor = '#be123c'
+  AtlasMap.updatePoints.call(hook)
+  assert.equal(boundsChanges, 0)
+  let clears = 0
+  hook.markers.clearLayers = () => clears++
+  AtlasMap.updatePoints.call(hook)
+  assert.equal(clears, 0)
 })
 
 test('popup scrolling fits inside the mobile map at the initial zoom', () => {

@@ -331,6 +331,8 @@ defmodule CAToolsWeb.MapComponents do
   attr :id, :string, required: true
   attr :points, :list, required: true
   attr :now, DateTime, default: nil
+  attr :marker_style, :atom, default: :plain
+  attr :marker_color, :string, default: "#2563eb"
   @doc "Renders a Leaflet map with escaped JSON and a stable canvas."
   @spec map_canvas(map()) :: Phoenix.LiveView.Rendered.t()
   def map_canvas(assigns) do
@@ -353,7 +355,13 @@ defmodule CAToolsWeb.MapComponents do
       )
 
     ~H"""
-    <div id={@id} phx-hook="AtlasMap" data-tile-url={@tile_url}>
+    <div
+      id={@id}
+      phx-hook="AtlasMap"
+      data-tile-url={@tile_url}
+      data-marker-style={@marker_style}
+      data-marker-color={@marker_color}
+    >
       <div
         id={@id <> "-canvas"}
         phx-update="ignore"

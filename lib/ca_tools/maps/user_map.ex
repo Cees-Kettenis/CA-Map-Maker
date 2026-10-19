@@ -15,6 +15,8 @@ defmodule CATools.Maps.UserMap do
           name: String.t() | nil,
           description: String.t() | nil,
           visibility: visibility() | nil,
+          marker_style: :plain | :community | :meetup,
+          marker_color: String.t(),
           public_slug: String.t() | nil,
           points_count: integer() | nil,
           sources_count: integer() | nil,
@@ -30,6 +32,8 @@ defmodule CATools.Maps.UserMap do
     field :description, :string
     field :visibility, Ecto.Enum, values: [:private, :public]
     field :public_slug, :string
+    field :marker_style, Ecto.Enum, values: [:plain, :community, :meetup], default: :plain
+    field :marker_color, :string, default: "#2563eb"
     field :points_count, :integer, default: 0
     field :sources_count, :integer, default: 0
     field :last_imported_at, :utc_datetime
@@ -70,5 +74,16 @@ defmodule CATools.Maps.UserMap do
     |> validate_length(:name, max: 160)
     |> validate_length(:description, max: 2_000)
     |> unique_constraint(:public_slug)
+  end
+
+  @doc "Validates map marker preferences without changing map metadata or image references."
+  @spec settings_changeset(t(), map()) :: Ecto.Changeset.t()
+  def settings_changeset(map, attrs) do
+    map
+    |> cast(attrs, [:marker_style, :marker_color])
+    |> validate_required([:marker_style, :marker_color])
+    |> validate_format(:marker_color, ~r/\A#[0-9a-fA-F]{6}\z/)
+    |> check_constraint(:marker_style, name: :valid_marker_style)
+    |> check_constraint(:marker_color, name: :valid_marker_color)
   end
 end

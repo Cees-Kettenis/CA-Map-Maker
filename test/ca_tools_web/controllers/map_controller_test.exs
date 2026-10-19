@@ -36,6 +36,8 @@ defmodule CAToolsWeb.MapControllerTest do
   test "public JSON includes only safe metadata", %{conn: conn, map: map, user: user} do
     data = conn |> get(~p"/maps/#{map.public_slug}/points") |> json_response(200)
     assert data["name"] == map.name
+    assert data["marker_style"] == "plain"
+    assert data["marker_color"] == "#2563eb"
     assert [point] = data["points"]
     assert point["latitude"] == 3.139
 
@@ -45,6 +47,23 @@ defmodule CAToolsWeb.MapControllerTest do
 
     refute Jason.encode!(data) =~ user.email
     refute Jason.encode!(data) =~ "encrypted_credentials"
+  end
+
+  test "public JSON exposes the creator's saved marker settings", %{
+    conn: conn,
+    map: map,
+    user: user
+  } do
+    {:ok, _} =
+      Maps.update_map_settings(user_scope_fixture(user), map.id, %{
+        marker_style: :meetup,
+        marker_color: "#be123c"
+      })
+
+    data = conn |> get(~p"/maps/#{map.public_slug}/points") |> json_response(200)
+    assert data["marker_style"] == "meetup"
+    assert data["marker_color"] == "#be123c"
+    assert [%{"community_logo_url" => nil, "meetup_photo_url" => nil}] = data["points"]
   end
 
   test "public JSON supplies resolved Campfire links for map popups", %{

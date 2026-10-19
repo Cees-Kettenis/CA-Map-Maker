@@ -39,6 +39,20 @@
                       "items": {
                         "$ref": "#/components/schemas/Point"
                       }
+                    },
+                    "marker_style": {
+                      "type": "string",
+                      "enum": [
+                        "plain",
+                        "community",
+                        "meetup"
+                      ],
+                      "description": "Marker style chosen by the map owner."
+                    },
+                    "marker_color": {
+                      "type": "string",
+                      "pattern": "^#[0-9a-fA-F]{6}$",
+                      "description": "Plain marker colour and fallback when a marker image is unavailable."
                     }
                   }
                 }
@@ -695,6 +709,16 @@
             "type": "string",
             "nullable": true,
             "description": "Local cached image path, when available."
+          },
+          "community_logo_url": {
+            "type": "string",
+            "nullable": true,
+            "description": "Existing local cached community logo, when available."
+          },
+          "meetup_photo_url": {
+            "type": "string",
+            "nullable": true,
+            "description": "Existing local cached meetup picture, when available. Does not fall back to a community logo."
           }
         },
         "required": [

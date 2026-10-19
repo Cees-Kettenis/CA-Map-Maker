@@ -5,6 +5,80 @@ defmodule CAToolsWeb.MapLive.ShowTest do
   import CATools.MapsFixtures
   alias CATools.Maps
 
+  test "map settings save for regular, community and date maps and update public viewers", %{
+    conn: conn
+  } do
+    user = user_fixture()
+    scope = user_scope_fixture(user)
+    regular = map_fixture(scope)
+
+    {:ok, community} =
+      CATools.Communities.save(scope, %{
+        source_url: "https://campfire.nianticlabs.com/discover/clubs/marker-settings"
+      })
+
+    {:ok, date_map} =
+      CATools.MeetupMaps.create(scope, %{
+        name: "Marker date map",
+        meetup_date: Date.utc_today(),
+        community_ids: [community.id]
+      })
+
+    for id <- [regular.id, community.map_id, date_map.id] do
+      {:ok, map} = Maps.update_map(scope, id, %{visibility: :public})
+      {:ok, public, _} = live(build_conn(), ~p"/maps/#{map.public_slug}")
+      {:ok, owner, _} = conn |> log_in_user(user) |> live(~p"/dashboard/maps/#{id}")
+      assert has_element?(owner, "#map-controls #open-map-settings", "Map settings")
+      refute has_element?(public, "#open-map-settings")
+      refute has_element?(owner, "#map-settings-dialog")
+      owner |> element("#open-map-settings") |> render_click()
+      assert has_element?(owner, "dialog[aria-labelledby='map-settings-title']")
+      assert has_element?(owner, "input[name='settings[marker_style]'][value='plain'][checked]")
+
+      owner
+      |> form("#map-settings-form",
+        settings: %{marker_color: "#be123c", marker_style: "community"}
+      )
+      |> render_change()
+
+      assert Maps.get_map(scope, id).marker_style == :plain
+      owner |> element("#map-settings-form button", "Cancel") |> render_click()
+      refute has_element?(owner, "#map-settings-dialog")
+      owner |> element("#open-map-settings") |> render_click()
+      assert has_element?(owner, "input[name='settings[marker_style]'][value='plain'][checked]")
+
+      for style <- ["community", "meetup", "plain"] do
+        owner
+        |> form("#map-settings-form", settings: %{marker_color: "#be123c", marker_style: style})
+        |> render_submit()
+
+        assert Maps.get_map(scope, id).marker_color == "#be123c"
+
+        assert has_element?(
+                 owner,
+                 "#owner-map[data-marker-style='#{style}'][data-marker-color='#be123c']"
+               )
+
+        assert has_element?(
+                 public,
+                 "#public-map[data-marker-style='#{style}'][data-marker-color='#be123c']"
+               )
+
+        refute has_element?(owner, "#map-settings-dialog")
+        owner |> element("#open-map-settings") |> render_click()
+
+        assert has_element?(
+                 owner,
+                 "input[name='settings[marker_style]'][value='#{style}'][checked]"
+               )
+      end
+
+      owner |> form("#map-settings-form", settings: %{marker_color: "invalid"}) |> render_submit()
+      assert has_element?(owner, "#map-settings-dialog .text-error", "has invalid format")
+      assert Maps.get_map(scope, id).marker_color == "#be123c"
+    end
+  end
+
   test "find community meetups reloads the saved local date without queueing imports", %{
     conn: conn
   } do

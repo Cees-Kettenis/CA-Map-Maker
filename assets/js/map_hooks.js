@@ -73,8 +73,13 @@ export const AtlasMap = {
   updated() { this.updatePoints() },
   updatePoints() {
     const data = this.el.querySelector('[data-map-points]').textContent
-    if (this.lastData === data) return
+    const style = this.el.dataset.markerStyle || 'plain'
+    const color = /^#[0-9a-fA-F]{6}$/.test(this.el.dataset.markerColor) ? this.el.dataset.markerColor : '#2563eb'
+    const settings = JSON.stringify([style, color])
+    if (this.lastData === data && this.lastSettings === settings) return
+    const pointsChanged = this.lastData !== data
     this.lastData = data
+    this.lastSettings = settings
     const points = JSON.parse(data)
     this.markers.clearLayers()
     const locations = new Map()
@@ -128,19 +133,30 @@ export const AtlasMap = {
         }
         popup.appendChild(section)
       })
-      const count = meetups.length > 1 ? `<small class="atlas-pin-count">${meetups.length}</small>` : ''
+      const pin = document.createElement('div')
+      pin.className = 'atlas-pin'
+      pin.style.backgroundColor = color
+      const imageUrl = style === 'community' ? point.community_logo_url : style === 'meetup' ? point.meetup_photo_url : null
+      const image = meetupImage(imageUrl, '', 'atlas-pin-image')
+      if (image) pin.appendChild(image)
+      if (meetups.length > 1) {
+        const count = document.createElement('small')
+        count.className = 'atlas-pin-count'
+        count.textContent = String(meetups.length)
+        pin.appendChild(count)
+      }
       window.L.marker([point.latitude, point.longitude], {
         title: meetups.length > 1 ? `${point.title} · ${meetups.length} meetups` : point.title,
         zIndexOffset: (locations.size - index) * 100,
-        icon: window.L.divIcon({className: '', iconSize: [28, 28], iconAnchor: [14, 28],
-          html: `<div class="atlas-pin"><span>${index + 1}</span>${count}</div>`}),
+        icon: window.L.divIcon({className: '', iconSize: [36, 36], iconAnchor: [18, 43],
+          popupAnchor: [0, -40], html: pin}),
       }).bindPopup(popup, {
         maxWidth: 340,
         minWidth: Math.max(50, Math.min(250, this.map.getSize().x - 70)),
         maxHeight: Math.max(80, Math.min(420, this.map.getSize().y - 80)),
       }).addTo(this.markers)
     })
-    if (points.length) this.map.fitBounds(this.markers.getBounds(), {padding: [45, 45], maxZoom: 14})
+    if (points.length && pointsChanged) this.map.fitBounds(this.markers.getBounds(), {padding: [45, 45], maxZoom: 14})
   },
   destroyed() { this.resizeObserver.disconnect(); this.map.remove() },
 }
@@ -196,9 +212,16 @@ export const ConfirmDialog = {
     this.targetId = this.el.dataset.targetId
     this.el.addEventListener('atlas:open', () => { if (!this.el.open) this.el.showModal() })
     this.el.addEventListener('click', event => { if (event.target === this.el) this.el.close() })
+    if (this.el.dataset.closeEvent) {
+      this.el.addEventListener('close', () => this.pushEvent(this.el.dataset.closeEvent, {}))
+    }
+    if (this.el.dataset.autoOpen === 'true') this.el.showModal()
   },
   updated() {
     if (this.targetId !== this.el.dataset.targetId && this.el.open) this.el.close()
     this.targetId = this.el.dataset.targetId
+  },
+  destroyed() {
+    if (this.el.dataset.returnFocus) document.getElementById(this.el.dataset.returnFocus)?.focus()
   },
 }

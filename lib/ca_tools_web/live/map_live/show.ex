@@ -28,6 +28,8 @@ defmodule CAToolsWeb.MapLive.Show do
            editing?: false,
            show_progress?: false,
            show_communities?: false,
+           show_settings?: false,
+           settings_form: to_form(Maps.change_map_settings(map), as: "settings"),
            available_communities: [],
            community_form: to_form(%{"community_ids" => []}, as: "communities"),
            show_past?: false,
@@ -90,11 +92,19 @@ defmodule CAToolsWeb.MapLive.Show do
             phx-window-keydown={JS.remove_attribute("open", to: "#map-controls")}
             phx-key="Escape"
           >
-            <summary class="atlas-button">
+            <summary id="map-controls-summary" class="atlas-button">
               <.icon name="hero-adjustments-horizontal" class="size-4" /> Map Controls
               <.icon name="hero-chevron-down" class="size-3" />
             </summary>
             <div class="atlas-map-controls-menu" role="group" aria-label="Map controls">
+              <button
+                id="open-map-settings"
+                phx-click={
+                  JS.push("open_settings") |> JS.remove_attribute("open", to: "#map-controls")
+                }
+                aria-haspopup="dialog"
+                class="atlas-button"
+              ><.icon name="hero-cog-6-tooth" class="size-4" /> Map settings</button>
               <button
                 :if={@map.visibility == :public}
                 id="copy-share"
@@ -175,7 +185,13 @@ defmodule CAToolsWeb.MapLive.Show do
         (@show_progress? || @show_communities?) && "xl:grid-cols-[1fr_320px]"
       ]}>
         <section class="atlas-card order-2 xl:order-1">
-          <.map_canvas id="owner-map" points={@points} now={@view_time} /><div class="px-5 py-4 flex justify-between text-xs">
+          <.map_canvas
+            id="owner-map"
+            points={@points}
+            now={@view_time}
+            marker_style={@map.marker_style}
+            marker_color={@map.marker_color}
+          /><div class="px-5 py-4 flex justify-between text-xs">
             <span>{length(Maps.active_points(@points, @view_time))} meetup locations</span>
           </div>
         </section>
@@ -234,6 +250,94 @@ defmodule CAToolsWeb.MapLive.Show do
         </aside>
       </div>
       <.meetup_section id="owner-meetups" points={@points} show_past={@show_past?} now={@view_time} />
+      <dialog
+        :if={@show_settings?}
+        id="map-settings-dialog"
+        phx-hook="ConfirmDialog"
+        phx-mounted={JS.ignore_attributes("open")}
+        data-auto-open="true"
+        data-close-event="close_settings"
+        data-return-focus="map-controls-summary"
+        class="atlas-dialog atlas-map-settings"
+        aria-labelledby="map-settings-title"
+        aria-describedby="map-settings-description"
+      >
+        <div class="flex items-center justify-between gap-3">
+          <h2 id="map-settings-title" class="text-xl font-semibold">Map settings</h2>
+          <button
+            type="button"
+            phx-click="close_settings"
+            aria-label="Close map settings"
+            class="atlas-button"
+          >
+            <.icon name="hero-x-mark" class="size-4" />
+          </button>
+        </div>
+        <p id="map-settings-description" class="text-sm opacity-65 mt-3">
+          Choose how meetup locations appear for everyone viewing this map.
+        </p>
+        <.form
+          for={@settings_form}
+          id="map-settings-form"
+          phx-change="validate_settings"
+          phx-submit="save_settings"
+          class="space-y-5 mt-6"
+        >
+          <fieldset class="space-y-3">
+            <legend class="font-semibold text-sm mb-3">Marker style</legend>
+            <label
+              :for={
+                {value, title, description, icon} <- [
+                  {:plain, "Plain marker", "A simple pin in your chosen colour.", "hero-map-pin"},
+                  {:community, "Community logo", "The logo of each meetup's community.",
+                   "hero-user-group"},
+                  {:meetup, "Meetup picture", "The picture from each meetup.", "hero-photo"}
+                ]
+              }
+              class="atlas-marker-option"
+            >
+              <input
+                type="radio"
+                name={@settings_form[:marker_style].name}
+                value={value}
+                checked={to_string(@settings_form[:marker_style].value) == to_string(value)}
+                class="radio radio-sm shrink-0"
+              />
+              <span class="atlas-marker-option-icon" aria-hidden="true"><.icon
+                name={icon}
+                class="size-6"
+              /></span>
+              <span class="min-w-0"><span class="block font-semibold text-sm">{title}</span><span class="block text-xs opacity-65 mt-1">{description}</span></span>
+            </label>
+            <p :for={{message, _} <- @settings_form[:marker_style].errors} class="text-sm text-error">
+              {message}
+            </p>
+          </fieldset>
+          <div>
+            <label for="map-marker-color" class="block font-semibold text-sm mb-3">Marker colour</label>
+            <div class="flex items-center gap-4">
+              <input
+                type="color"
+                id="map-marker-color"
+                name={@settings_form[:marker_color].name}
+                value={@settings_form[:marker_color].value}
+                class="atlas-marker-color"
+              />
+              <span class="text-sm opacity-65">Also used when a logo or picture is unavailable.</span>
+            </div>
+            <p :for={{message, _} <- @settings_form[:marker_color].errors} class="text-sm text-error">
+              {message}
+            </p>
+          </div>
+          <p class="text-xs opacity-65">
+            Locations with several meetups use the first upcoming meetup's image and show a count.
+          </p>
+          <div class="atlas-map-settings-actions flex justify-end gap-3 pt-2">
+            <button type="button" phx-click="close_settings" class="atlas-button">Cancel</button>
+            <.button variant="primary" phx-disable-with="Saving...">Save settings</.button>
+          </div>
+        </.form>
+      </dialog>
       <.delete_confirmation
         id="delete-map-dialog"
         name={@map.name}
@@ -254,6 +358,37 @@ defmodule CAToolsWeb.MapLive.Show do
     id = socket.assigns.map.id
 
     case event do
+      "open_settings" ->
+        {:noreply,
+         assign(socket,
+           show_settings?: true,
+           settings_form: to_form(Maps.change_map_settings(socket.assigns.map), as: "settings")
+         )}
+
+      "close_settings" ->
+        {:noreply, assign(socket, show_settings?: false)}
+
+      "validate_settings" ->
+        changeset = Maps.change_map_settings(socket.assigns.map, params["settings"] || %{})
+
+        {:noreply,
+         assign(socket, settings_form: to_form(%{changeset | action: :validate}, as: "settings"))}
+
+      "save_settings" ->
+        case Maps.update_map_settings(scope, id, params["settings"] || %{}) do
+          {:ok, map} ->
+            {:noreply,
+             socket
+             |> assign(map: map, show_settings?: false)
+             |> put_flash(:info, "Map settings saved.")}
+
+          {:error, %Ecto.Changeset{} = changeset} ->
+            {:noreply, assign(socket, settings_form: to_form(changeset, as: "settings"))}
+
+          _ ->
+            {:noreply, put_flash(socket, :error, "Could not save map settings.")}
+        end
+
       "toggle_sharing" ->
         visibility = if socket.assigns.map.visibility == :public, do: :private, else: :public
 

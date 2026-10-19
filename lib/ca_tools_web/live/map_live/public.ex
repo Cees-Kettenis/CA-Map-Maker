@@ -87,7 +87,13 @@ defmodule CAToolsWeb.MapLive.Public do
         /> Export KML</.link>
       </div>
       <section class="atlas-card">
-        <.map_canvas id="public-map" points={@points} now={@view_time} />
+        <.map_canvas
+          id="public-map"
+          points={@points}
+          now={@view_time}
+          marker_style={@map.marker_style}
+          marker_color={@map.marker_color}
+        />
       </section>
       <p class="text-xs opacity-60 mt-3">
         {length(Maps.active_points(@points, @view_time))} meetup locations

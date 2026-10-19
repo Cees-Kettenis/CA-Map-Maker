@@ -189,6 +189,30 @@ defmodule CATools.Maps do
   @spec change_existing_map(UserMap.t(), map()) :: Changeset.t()
   def change_existing_map(map, attrs \\ %{}), do: UserMap.changeset(map, attrs)
 
+  @doc "Returns a changeset for a map's marker style and colour."
+  @spec change_map_settings(UserMap.t(), map()) :: Changeset.t()
+  def change_map_settings(map, attrs \\ %{}), do: UserMap.settings_changeset(map, attrs)
+
+  @doc "Saves marker settings for an owned map, reusing existing community and meetup images."
+  @spec update_map_settings(Scope.t() | nil, term(), map()) ::
+          {:ok, UserMap.t()} | {:error, Changeset.t() | :not_found}
+  def update_map_settings(scope, id, attrs) do
+    case get_map(scope, id) do
+      nil ->
+        {:error, :not_found}
+
+      map ->
+        case map |> UserMap.settings_changeset(attrs) |> Repo.update() do
+          {:ok, updated} ->
+            notify(updated.user_id)
+            {:ok, updated}
+
+          error ->
+            error
+        end
+    end
+  end
+
   @doc "Updates an owned map's name, description and visibility."
   @spec update_map(Scope.t() | nil, term(), map()) :: {:ok, UserMap.t()} | {:error, term()}
   def update_map(scope, id, attrs) do
@@ -700,7 +724,7 @@ defmodule CATools.Maps do
     images =
       CATools.Maps.ImageCache.local_urls(
         Enum.flat_map(map.points, &[&1.cover_photo_url, &1.host_avatar_url]) ++
-          Map.values(community_logos)
+          Map.values(community_logos) ++ Map.values(club_logos)
       )
 
     map.points
@@ -734,6 +758,14 @@ defmodule CATools.Maps do
 
       data =
         data
+        |> Map.put(:meetup_photo_url, Map.get(images, point.cover_photo_url))
+        |> Map.put(
+          :community_logo_url,
+          Map.get(
+            images,
+            Map.get(club_logos, point.club_id) || Map.get(community_logos, point.map_id)
+          )
+        )
         |> Map.put(
           :cover_photo_url,
           Map.get(

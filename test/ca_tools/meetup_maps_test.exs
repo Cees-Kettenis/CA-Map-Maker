@@ -354,6 +354,8 @@ defmodule CATools.MeetupMapsTest do
     for {map_id, logo} <- logos do
       point = Enum.find(date_map.points, &(&1.map_id == map_id))
       assert Enum.find(data, &(&1.id == point.id)).cover_photo_url == logo
+      assert Enum.find(data, &(&1.id == point.id)).community_logo_url == logo
+      assert Enum.find(data, &(&1.id == point.id)).meetup_photo_url == nil
       group = Maps.get_map(scope, map_id)
       assert hd(Maps.point_data(group)).cover_photo_url == logo
       assert Repo.get!(MapPoint, point.id).cover_photo_url == nil
@@ -378,6 +380,7 @@ defmodule CATools.MeetupMapsTest do
 
     other_owner = %{pasted_map | user_id: user_scope_fixture().user.id, points: [pasted_point]}
     assert hd(Maps.point_data(other_owner)).cover_photo_url == nil
+    assert hd(Maps.point_data(other_owner)).community_logo_url == nil
 
     [first_point | _] = date_map.points
     first_community = Repo.get!(CATools.Communities.Community, first_community.id)
@@ -403,6 +406,8 @@ defmodule CATools.MeetupMapsTest do
     on_exit(fn -> File.rm(path) end)
     with_cover = %{date_map | points: [%{point | cover_photo_url: cover}]}
     assert hd(Maps.point_data(with_cover)).cover_photo_url == "/media/meetups/#{id}?v=1"
+    assert hd(Maps.point_data(with_cover)).meetup_photo_url == "/media/meetups/#{id}?v=1"
+    assert hd(Maps.point_data(with_cover)).community_logo_url == Map.new(logos)[point.map_id]
 
     File.rm!(path)
     assert hd(Maps.point_data(with_cover)).cover_photo_url == nil

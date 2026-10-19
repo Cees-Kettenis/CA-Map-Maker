@@ -15,6 +15,8 @@ defmodule CAToolsWeb.MapController do
         json(conn, %{
           name: map.name,
           description: map.description,
+          marker_style: map.marker_style,
+          marker_color: map.marker_color,
           points: Maps.point_data(map) |> Maps.active_points()
         })
     end

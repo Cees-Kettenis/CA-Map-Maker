@@ -405,7 +405,13 @@ defmodule CAToolsWeb.CommunityLive.Index do
                 class="atlas-button shrink-0"
               ><.icon name="hero-arrow-down-tray" class="size-4 shrink-0" /> Export KML</.link>
             </div>
-            <.map_canvas id="community-map" points={Maps.point_data(@map, true)} now={@view_time} />
+            <.map_canvas
+              id="community-map"
+              points={Maps.point_data(@map, true)}
+              now={@view_time}
+              marker_style={@map.marker_style}
+              marker_color={@map.marker_color}
+            />
             <p class="text-sm opacity-65 mt-4">
               {length(Maps.active_points(Maps.point_data(@map)))} locations · {@map.sources_count} meetups discovered
             </p>

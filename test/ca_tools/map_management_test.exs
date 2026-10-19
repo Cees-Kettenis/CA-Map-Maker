@@ -6,6 +6,51 @@ defmodule CATools.MapManagementTest do
   import CATools.AccountsFixtures
   import CATools.MapsFixtures
 
+  test "marker settings validate colour and style, enforce ownership and leave images and meetups shared" do
+    scope = user_scope_fixture()
+    map = map_fixture(scope)
+    other = user_scope_fixture()
+    original_points = Repo.all(Maps.MapPoint)
+    original_images = Repo.all(Maps.CachedImage)
+
+    assert map.marker_style == :plain
+    assert map.marker_color == "#2563eb"
+
+    assert {:error, :not_found} =
+             Maps.update_map_settings(other, map.id, %{marker_style: :meetup})
+
+    assert {:error, :not_found} = Maps.update_map_settings(nil, map.id, %{marker_style: :meetup})
+
+    for attrs <- [
+          %{marker_style: "unknown"},
+          %{marker_style: nil},
+          %{marker_color: nil},
+          %{marker_color: "red"},
+          %{marker_color: "#abc"},
+          %{marker_color: "#2563eb; color:red"}
+        ] do
+      assert {:error, %Ecto.Changeset{}} = Maps.update_map_settings(scope, map.id, attrs)
+    end
+
+    for style <- [:plain, :community, :meetup] do
+      assert {:ok, saved} =
+               Maps.update_map_settings(scope, map.id, %{
+                 marker_style: style,
+                 marker_color: "#Be123C",
+                 name: "ignored",
+                 image_id: String.duplicate("a", 64)
+               })
+
+      assert saved.marker_style == style
+      assert saved.marker_color == "#Be123C"
+      assert saved.name == map.name
+      assert saved.image_id == map.image_id
+    end
+
+    assert Repo.all(Maps.MapPoint) == original_points
+    assert Repo.all(Maps.CachedImage) == original_images
+  end
+
   test "meetups are ordered by the next event, followed by past and undated events" do
     now = DateTime.utc_now(:second)
 
